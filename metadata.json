@@ -1,0 +1,6 @@
+{
+  "name": "Network Packet Routing",
+  "description": "An interactive, high-fidelity visualization and learning platform explaining graph-based routing algorithms (DFS & BFS) used for network packet transmission.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
