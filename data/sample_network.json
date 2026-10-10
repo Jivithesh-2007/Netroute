@@ -1,0 +1,20 @@
+{
+  "directed": false,
+  "routers": [
+    { "id": "R1", "name": "Core Router R1", "x": 120.0, "y": 120.0, "is_online": true },
+    { "id": "R2", "name": "Edge Router R2", "x": 320.0, "y": 80.0, "is_online": true },
+    { "id": "R3", "name": "Gateway R3", "x": 520.0, "y": 140.0, "is_online": true },
+    { "id": "R4", "name": "Switch Router R4", "x": 180.0, "y": 300.0, "is_online": true },
+    { "id": "R5", "name": "Distributor R5", "x": 380.0, "y": 320.0, "is_online": true },
+    { "id": "R6", "name": "Border Router R6", "x": 580.0, "y": 300.0, "is_online": true }
+  ],
+  "edges": [
+    ["R1", "R2", 1.0],
+    ["R1", "R4", 1.0],
+    ["R2", "R3", 1.0],
+    ["R2", "R5", 1.0],
+    ["R3", "R6", 1.0],
+    ["R4", "R5", 1.0],
+    ["R5", "R6", 1.0]
+  ]
+}
