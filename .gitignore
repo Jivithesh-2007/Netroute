@@ -1,8 +1,10 @@
-node_modules/
-build/
-dist/
-coverage/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.swp
 .DS_Store
-*.log
-.env*
-!.env.example
+
+# Local history logs
+data/history_log.json
