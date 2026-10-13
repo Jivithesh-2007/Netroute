@@ -12,6 +12,15 @@ def linear_search(arr: List[int], target: int) -> SimulationResult:
     steps: List[SimulationStep] = []
     comparisons = 0
 
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Linear Search",
+            success=False,
+            total_steps=0,
+            total_comparisons=0,
+            message="Input array is empty."
+        )
+
     for i, val in enumerate(arr):
         comparisons += 1
         steps.append(SimulationStep(
@@ -65,6 +74,22 @@ def binary_search_iterative(arr: List[int], target: int) -> SimulationResult:
     start_time = time.perf_counter()
     steps: List[SimulationStep] = []
     comparisons = 0
+
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Binary Search (Iterative)",
+            success=False,
+            total_steps=0,
+            total_comparisons=0,
+            message="Input array is empty."
+        )
+
+    if arr != sorted(arr):
+        return SimulationResult(
+            algorithm_name="Binary Search (Iterative)",
+            success=False,
+            message="Binary search requires a sorted array."
+        )
 
     low, high = 0, len(arr) - 1
 
@@ -130,6 +155,22 @@ def binary_search_recursive(arr: List[int], target: int) -> SimulationResult:
     start_time = time.perf_counter()
     steps: List[SimulationStep] = []
     comparisons = [0]
+
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Binary Search (Recursive)",
+            success=False,
+            total_steps=0,
+            total_comparisons=0,
+            message="Input array is empty."
+        )
+
+    if arr != sorted(arr):
+        return SimulationResult(
+            algorithm_name="Binary Search (Recursive)",
+            success=False,
+            message="Binary search requires a sorted array."
+        )
 
     def _rec_search(low: int, high: int) -> int:
         if low > high:
@@ -201,6 +242,22 @@ def interpolation_search(arr: List[int], target: int) -> SimulationResult:
     start_time = time.perf_counter()
     steps: List[SimulationStep] = []
     comparisons = 0
+
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Interpolation Search",
+            success=False,
+            total_steps=0,
+            total_comparisons=0,
+            message="Input array is empty."
+        )
+
+    if arr != sorted(arr):
+        return SimulationResult(
+            algorithm_name="Interpolation Search",
+            success=False,
+            message="Interpolation search requires a sorted array."
+        )
 
     low, high = 0, len(arr) - 1
 

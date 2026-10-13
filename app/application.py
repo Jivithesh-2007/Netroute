@@ -85,13 +85,27 @@ class NetRouteApp(tk.Tk):
         )
         self.status_lbl.pack(side="left")
 
+        # Active module key tracking
+        self.active_module_key: Optional[str] = None
+
         # Default module view
         self.show_module("network")
 
     def show_module(self, module_key: str):
-        """Switch active module view frame."""
+        """Switch active module view frame and manage view lifecycle."""
         if module_key not in self.views:
             return
+
+        # Call on_hide on previous active view if available
+        if self.active_module_key and self.active_module_key in self.views:
+            prev_view = self.views[self.active_module_key]
+            if hasattr(prev_view, "on_hide"):
+                try:
+                    prev_view.on_hide()
+                except Exception:
+                    pass
+
+        self.active_module_key = module_key
 
         # Update Header titles
         headers = {
@@ -99,8 +113,8 @@ class NetRouteApp(tk.Tk):
             "search_sort": ("Searching & Sorting Lab", "CO3: Linear, Binary, Interpolation Search & Bubble, Insertion, Selection, Merge Sort"),
             "hashing": ("Hash Table Lab", "CO3: Separate Chaining & Open Addressing with Linear Probing"),
             "trees": ("Tree Structures Lab", "CO4: Binary Tree Traversals, BST, AVL Tree Rotations, Min/Max Heap, B-Tree"),
-            "performance": ("Performance Dashboard", "Module D: Empirical Benchmarking & Theoretical Complexity Analysis"),
-            "learning": ("Learning Outcomes & Project Information", "Module E: Course Outcome Mapping CO3, CO4, CO5 & Practicum Guide")
+            "performance": ("Performance Dashboard", "Empirical Benchmarking & Theoretical Complexity Analysis"),
+            "learning": ("Learning Outcomes & Documentation", "Course Outcome Mapping CO3, CO4, CO5 & Practicum Guide")
         }
 
         title, subtitle = headers.get(module_key, ("NetRoute", ""))
@@ -113,7 +127,10 @@ class NetRouteApp(tk.Tk):
 
         # Call view lifecycle hook if available
         if hasattr(view, "on_show"):
-            view.on_show()
+            try:
+                view.on_show()
+            except Exception:
+                pass
 
         self.set_status(f"Active Module: {title}")
 

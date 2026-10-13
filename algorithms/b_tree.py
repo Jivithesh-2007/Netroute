@@ -163,6 +163,8 @@ class BTree:
         if not self.root:
             return SimulationResult(algorithm_name="B-Tree Delete", success=False, message="Tree empty.")
 
+        deleted = [False]
+
         def _delete_node(node: BTreeNode, k: int):
             t = self.t
             idx = 0
@@ -170,6 +172,7 @@ class BTree:
                 idx += 1
 
             if idx < len(node.keys) and node.keys[idx] == k:
+                deleted[0] = True
                 if node.leaf:
                     node.keys.pop(idx)
                     steps.append(SimulationStep(
@@ -194,23 +197,30 @@ class BTree:
                 if node.leaf:
                     return
                 flag = (idx == len(node.keys))
-                if len(node.children[idx].keys) < t:
+                if idx < len(node.children) and len(node.children[idx].keys) < t:
                     self._fill(node, idx)
                 if flag and idx > len(node.keys):
                     _delete_node(node.children[idx - 1], k)
-                else:
+                elif idx < len(node.children):
                     _delete_node(node.children[idx], k)
 
         _delete_node(self.root, key)
-        if len(self.root.keys) == 0:
-            self.root = self.root.children[0] if not self.root.leaf else None
+        if self.root and len(self.root.keys) == 0:
+            self.root = self.root.children[0] if not self.root.leaf and self.root.children else None
 
-        return SimulationResult(
-            algorithm_name="B-Tree Delete",
-            success=True,
-            steps=steps,
-            message=f"Processed deletion for key {key}."
-        )
+        if deleted[0]:
+            return SimulationResult(
+                algorithm_name="B-Tree Delete",
+                success=True,
+                steps=steps,
+                message=f"Successfully deleted key {key} from B-Tree."
+            )
+        else:
+            return SimulationResult(
+                algorithm_name="B-Tree Delete",
+                success=False,
+                message=f"Key {key} not found in B-Tree."
+            )
 
     def _get_pred(self, node: BTreeNode, idx: int) -> int:
         curr = node.children[idx]

@@ -60,7 +60,7 @@ class ConsoleLog(ttk.Frame):
         self.text = tk.Text(
             text_frame,
             height=height,
-            bg="#F8FAFC",
+            bg=Theme.BG_CARD,
             fg=Theme.TEXT_MAIN,
             insertbackground=Theme.TEXT_MAIN,
             font=Theme.FONT_MONO,

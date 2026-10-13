@@ -15,6 +15,15 @@ def bubble_sort(arr_input: List[int]) -> SimulationResult:
     comparisons = 0
     swaps = 0
 
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Bubble Sort",
+            success=True,
+            path=[],
+            total_steps=0,
+            message="Empty array."
+        )
+
     steps.append(SimulationStep(
         step_type="init",
         data_structure_state=list(arr),
@@ -74,6 +83,15 @@ def insertion_sort(arr_input: List[int]) -> SimulationResult:
     steps: List[SimulationStep] = []
     comparisons = 0
     swaps = 0
+
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Insertion Sort",
+            success=True,
+            path=[],
+            total_steps=0,
+            message="Empty array."
+        )
 
     steps.append(SimulationStep(
         step_type="init",
@@ -148,6 +166,15 @@ def selection_sort(arr_input: List[int]) -> SimulationResult:
     comparisons = 0
     swaps = 0
 
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Selection Sort",
+            success=True,
+            path=[],
+            total_steps=0,
+            message="Empty array."
+        )
+
     steps.append(SimulationStep(
         step_type="init",
         data_structure_state=list(arr),
@@ -219,6 +246,15 @@ def merge_sort(arr_input: List[int]) -> SimulationResult:
     steps: List[SimulationStep] = []
     comparisons = [0]
     writes = [0]
+
+    if not arr:
+        return SimulationResult(
+            algorithm_name="Merge Sort",
+            success=True,
+            path=[],
+            total_steps=0,
+            message="Empty array."
+        )
 
     steps.append(SimulationStep(
         step_type="init",

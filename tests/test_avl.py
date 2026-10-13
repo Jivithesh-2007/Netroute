@@ -33,6 +33,18 @@ class TestAVL(unittest.TestCase):
 
         _check_balance(avl.root)
 
+    def test_avl_deletion_and_rebalance(self):
+        avl = AVLTree()
+        for k in [10, 20, 30, 40, 50]:
+            avl.insert(k)
+
+        # Delete key
+        self.assertTrue(avl.delete(50).success)
+        self.assertFalse(avl.search(50).success)
+
+        # Delete missing key returns success=False
+        self.assertFalse(avl.delete(999).success)
+
 
 if __name__ == "__main__":
     unittest.main()

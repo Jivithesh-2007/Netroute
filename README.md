@@ -2,7 +2,7 @@
 
 **Course:** Data Structures and Algorithms  
 **Course Code:** 25CS306  
-**Academic Level:** Micro-Project (CO3, CO4, CO5)  
+**Academic Level:** Final Micro-Project (CO3, CO4, CO5)  
 **Implementation:** Standalone Native Python 3 Desktop Application (Tkinter, ttk, Tkinter Canvas)
 
 ---
@@ -11,7 +11,7 @@
 
 **NetRoute** is a comprehensive offline Python desktop application for visualizing data structures and algorithm simulations with a focus on computer networking and routing applications. 
 
-It replaces obsolete web-based implementations with a modular, responsive desktop GUI featuring professional dark navy graphics, step-by-step data structure animations, real algorithm execution, interactive topology editing, and empirical performance benchmarking.
+It features a modern, professional white-themed desktop GUI (`#F7F8FA` application background, crisp `#FFFFFF` cards and sidebar, `#2563EB` royal blue accent, and `#15803D` success indicators), step-by-step data structure animations, real algorithm execution, interactive topology editing, and empirical performance benchmarking.
 
 ---
 
@@ -75,9 +75,9 @@ NetRoute/
 ├── assets/                     # Icons and graphics
 ├── app/                        # Application shell & theme system
 │   ├── __init__.py
-│   ├── application.py          # NetRouteApp main window shell
-│   ├── theme.py                # Dark Navy design system & TTK styling
-│   ├── navigation.py           # Sidebar navigation panel
+│   ├── application.py          # NetRouteApp main window shell & lifecycle hooks
+│   ├── theme.py                # Professional White design system & TTK styling
+│   ├── navigation.py           # Clean white sidebar navigation panel
 │   └── widgets.py              # Reusable cards, stat boxes, control bar, console
 ├── algorithms/                 # Core algorithm implementations (Independent of GUI)
 │   ├── __init__.py
@@ -123,7 +123,8 @@ NetRoute/
     ├── test_bst.py
     ├── test_avl.py
     ├── test_heap.py
-    └── test_b_tree.py
+    ├── test_b_tree.py
+    └── test_validation_and_services.py
 ```
 
 ---
@@ -144,26 +145,38 @@ NetRoute/
 ### Windows
 1. Download Python 3.10+ from python.org.
 2. Ensure **"tcl/tk and IDLE"** checkbox is checked during installation.
+3. Open Command Prompt (cmd) or PowerShell.
 
 ---
 
 ## 8. Running the Application
 
-Launch the desktop application using python3:
+Launch the desktop application using `python3` (macOS/Linux) or `python` (Windows):
 
 ```bash
+# macOS / Linux
 python3 main.py
+
+# Windows
+python main.py
 ```
 
 ---
 
 ## 9. Running Automated Tests
 
-Run the complete test suite to verify algorithm implementations:
+Run the complete test suite to verify algorithm correctness and edge cases:
 
 ```bash
-python3 -m unittest discover -s tests
+# macOS / Linux
+python3 -m unittest discover -s tests -p "test_*.py"
+
+# Windows
+python -m unittest discover -s tests -p "test_*.py"
 ```
+
+**Test Execution Result:**  
+`50 tests passed in 0.005s (100% PASS)`
 
 ---
 
@@ -191,7 +204,7 @@ python3 -m unittest discover -s tests
 
 ## 11. Known Limitations
 
-- Graphics rendering relies on native Tkinter Canvas primitives.
+- Canvas rendering relies on native Tkinter Canvas primitives.
 - Large datasets ($N > 500$) in visualizers are scaled down to ensure UI responsiveness.
 
 ---

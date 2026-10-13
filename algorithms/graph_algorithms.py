@@ -207,7 +207,8 @@ def dfs_path(graph: Graph, start_id: str, end_id: str) -> SimulationResult:
         for nbr in sorted(neighbors, reverse=True):
             total_comparisons += 1
             if nbr not in visited:
-                parent[nbr] = curr
+                if nbr not in parent:
+                    parent[nbr] = curr
                 stack.append(nbr)
                 steps.append(SimulationStep(
                     step_type="push",

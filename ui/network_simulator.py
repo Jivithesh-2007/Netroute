@@ -52,6 +52,17 @@ class NetworkSimulatorView(ttk.Frame):
         # Load default network topology
         self.load_default_topology()
 
+    def on_hide(self):
+        """Lifecycle hook when module view is hidden."""
+        self.sim_service.stop()
+        if self._packet_timer:
+            try:
+                self.after_cancel(self._packet_timer)
+            except Exception:
+                pass
+            self._packet_timer = None
+        self.canvas.delete("packet")
+
     def _build_ui(self):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=3)

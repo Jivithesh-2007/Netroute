@@ -190,6 +190,7 @@ class AVLTree:
     def delete(self, key: int) -> SimulationResult:
         """Delete key from AVL tree and rebalance."""
         steps: List[SimulationStep] = []
+        deleted = [False]
 
         def _min_value_node(node: AVLNode) -> AVLNode:
             curr = node
@@ -206,6 +207,7 @@ class AVLTree:
             elif k > node.key:
                 node.right = _delete_rec(node.right, k)
             else:
+                deleted[0] = True
                 if not node.left:
                     return node.right
                 elif not node.right:
@@ -238,13 +240,20 @@ class AVLTree:
             return node
 
         self.root = _delete_rec(self.root, key)
-        return SimulationResult(
-            algorithm_name="AVL Delete",
-            success=True,
-            total_steps=len(steps),
-            steps=steps,
-            message=f"Deleted key {key} from AVL tree."
-        )
+        if deleted[0]:
+            return SimulationResult(
+                algorithm_name="AVL Delete",
+                success=True,
+                total_steps=len(steps),
+                steps=steps,
+                message=f"Deleted key {key} from AVL tree."
+            )
+        else:
+            return SimulationResult(
+                algorithm_name="AVL Delete",
+                success=False,
+                message=f"Key {key} not present in AVL tree."
+            )
 
     def clear(self):
         self.root = None

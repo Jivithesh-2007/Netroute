@@ -373,6 +373,12 @@ class HashTableLinearProbing:
             probes += 1
             cell = self.table[idx]
 
+            steps.append(SimulationStep(
+                step_type="probe",
+                highlight_indices=[idx],
+                message=f"Probe {i+1}: checking index {idx} for key {key} deletion."
+            ))
+
             if cell is None:
                 break
 

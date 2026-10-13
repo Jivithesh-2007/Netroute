@@ -47,6 +47,10 @@ class TreeLabView(ttk.Frame):
         self._build_ui()
         self.redraw_active_tree()
 
+    def on_hide(self):
+        """Lifecycle hook when module view is hidden."""
+        self.sim_service.stop()
+
     def _build_ui(self):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=3)

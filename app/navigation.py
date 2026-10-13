@@ -8,23 +8,27 @@ from app.theme import Theme
 
 
 class SidebarNav(ttk.Frame):
-    """Sidebar navigation bar with module switching tabs."""
+    """Sidebar navigation panel with white theme styling."""
 
     MODULES = [
-        ("network", "🌐 Network Simulator", "CO5 Graph Routing & Canvas"),
-        ("search_sort", "🔍 Searching & Sorting", "CO3 Algorithms Lab"),
-        ("hashing", "🔑 Hash Table Lab", "CO3 Chaining & Open Addressing"),
-        ("trees", "🌳 Tree Structures Lab", "CO4 BST, AVL, Heap, B-Tree"),
-        ("performance", "📊 Performance Dashboard", "Empirical Benchmarking"),
-        ("learning", "📘 Learning Outcomes", "Course Mapping & Documentation")
+        ("network", "Network Simulator", "CO5 Graph Routing"),
+        ("search_sort", "Searching & Sorting", "CO3 Search & Sort"),
+        ("hashing", "Hash Table Lab", "CO3 Hashing & Probing"),
+        ("trees", "Tree Structures Lab", "CO4 BST, AVL, Heap, B-Tree"),
+        ("performance", "Performance Dashboard", "Empirical Benchmarking"),
+        ("learning", "Learning Outcomes", "Course Mapping & Docs")
     ]
 
     def __init__(self, parent, on_navigate: Callable[[str], None], **kwargs):
-        super().__init__(parent, style="Sidebar.TFrame", width=240, **kwargs)
+        super().__init__(parent, style="Sidebar.TFrame", width=230, **kwargs)
         self.pack_propagate(False)
         self.on_navigate = on_navigate
         self.active_tab = "network"
         self.buttons = {}
+
+        # Right border line separating sidebar from main content
+        right_border = tk.Frame(self, bg=Theme.BORDER_COLOR, width=1)
+        right_border.pack(side="right", fill="y")
 
         # Brand / Title Banner
         brand_frame = ttk.Frame(self, style="Sidebar.TFrame", padding=(16, 20, 16, 16))
@@ -54,7 +58,7 @@ class SidebarNav(ttk.Frame):
 
         # Module Navigation Buttons
         nav_container = ttk.Frame(self, style="Sidebar.TFrame")
-        nav_container.pack(fill="both", expand=True, pady=10)
+        nav_container.pack(fill="both", expand=True, pady=6)
 
         for mod_key, label, desc in self.MODULES:
             btn = ttk.Button(
@@ -63,7 +67,7 @@ class SidebarNav(ttk.Frame):
                 style="Nav.TButton",
                 command=lambda k=mod_key: self._select_tab(k)
             )
-            btn.pack(fill="x", pady=3)
+            btn.pack(fill="x", pady=2, padx=8)
             self.buttons[mod_key] = btn
 
         # Footer Version Tag
@@ -72,7 +76,7 @@ class SidebarNav(ttk.Frame):
 
         ver_lbl = tk.Label(
             footer_frame,
-            text="Offline Python Desktop v2.0",
+            text="v2.0 • Offline Desktop Engine",
             font=Theme.FONT_SMALL,
             bg=Theme.BG_SIDEBAR,
             fg=Theme.TEXT_MUTED
