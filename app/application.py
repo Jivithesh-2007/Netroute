@@ -21,12 +21,12 @@ class NetRouteApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("NetRoute – Interactive DSA & Network Routing Simulator (25CS306)")
-        self.geometry("1280x800")
-        self.minsize(1024, 720)
+        self.title("NetRoute — Interactive DSA & Network Routing Simulator (25CS306)")
+        self.geometry("1280x820")
+        self.minsize(1024, 700)
         self.configure(bg=Theme.BG_DARK)
 
-        # Apply dark theme styles
+        # Apply professional light theme styles
         Theme.setup_styles(self)
 
         # Main Layout: Sidebar on Left, Content Area on Right
@@ -39,24 +39,35 @@ class NetRouteApp(tk.Tk):
 
         # 2. Main Content Frame
         self.content_container = ttk.Frame(self, style="TFrame")
-        self.content_container.grid(row=0, column=1, sticky="nsew", padx=12, pady=12)
+        self.content_container.grid(row=0, column=1, sticky="nsew", padx=14, pady=10)
 
         self.content_container.grid_rowconfigure(1, weight=1)
         self.content_container.grid_columnconfigure(0, weight=1)
 
         # Header Title Bar
         self.header_frame = ttk.Frame(self.content_container, style="TFrame")
-        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
 
         self.title_lbl = ttk.Label(self.header_frame, text="Network Routing Simulator", style="Header.TLabel")
         self.title_lbl.pack(side="left")
+
+        self.badge_lbl = tk.Label(
+            self.header_frame,
+            text="CO5 GRAPH",
+            font=Theme.FONT_SMALL_BOLD,
+            bg=Theme.BG_SELECTED,
+            fg=Theme.ACCENT_BLUE,
+            padx=6,
+            pady=2
+        )
+        self.badge_lbl.pack(side="left", padx=(10, 0))
 
         self.subtitle_lbl = ttk.Label(
             self.header_frame,
             text="CO5: Graph Routing, BFS & DFS Traversal, Packet Animation, Topology Editing",
             style="Subtitle.TLabel"
         )
-        self.subtitle_lbl.pack(side="left", padx=(16, 0), pady=(4, 0))
+        self.subtitle_lbl.pack(side="left", padx=(12, 0), pady=(3, 0))
 
         # Views Dictionary
         self.views = {}
@@ -73,8 +84,15 @@ class NetRouteApp(tk.Tk):
             view.grid(row=1, column=0, sticky="nsew")
 
         # Status Bar at Bottom
-        self.status_bar = ttk.Frame(self.content_container, style="CardAlt.TFrame", padding=(8, 4))
-        self.status_bar.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        self.status_bar = tk.Frame(
+            self.content_container,
+            bg=Theme.BG_CARD_ALT,
+            highlightbackground=Theme.BORDER_COLOR,
+            highlightthickness=1,
+            padx=10,
+            pady=4
+        )
+        self.status_bar.grid(row=2, column=0, sticky="ew", pady=(6, 0))
 
         self.status_lbl = tk.Label(
             self.status_bar,
@@ -84,6 +102,15 @@ class NetRouteApp(tk.Tk):
             fg=Theme.TEXT_MUTED
         )
         self.status_lbl.pack(side="left")
+
+        self.status_mode_lbl = tk.Label(
+            self.status_bar,
+            text="Engine: Deterministic Standard Python 3 • 100% Offline",
+            font=Theme.FONT_SMALL,
+            bg=Theme.BG_CARD_ALT,
+            fg=Theme.TEXT_DISABLED
+        )
+        self.status_mode_lbl.pack(side="right")
 
         # Active module key tracking
         self.active_module_key: Optional[str] = None
@@ -107,19 +134,20 @@ class NetRouteApp(tk.Tk):
 
         self.active_module_key = module_key
 
-        # Update Header titles
+        # Update Header titles and Badges
         headers = {
-            "network": ("Network Routing Simulator", "CO5: Graph Routing, BFS & DFS Traversal, Packet Animation, Topology Editing"),
-            "search_sort": ("Searching & Sorting Lab", "CO3: Linear, Binary, Interpolation Search & Bubble, Insertion, Selection, Merge Sort"),
-            "hashing": ("Hash Table Lab", "CO3: Separate Chaining & Open Addressing with Linear Probing"),
-            "trees": ("Tree Structures Lab", "CO4: Binary Tree Traversals, BST, AVL Tree Rotations, Min/Max Heap, B-Tree"),
-            "performance": ("Performance Dashboard", "Empirical Benchmarking & Theoretical Complexity Analysis"),
-            "learning": ("Learning Outcomes & Documentation", "Course Outcome Mapping CO3, CO4, CO5 & Practicum Guide")
+            "network": ("Network Routing Simulator", "CO5: Graph Routing, BFS & DFS Traversal, Packet Animation, Topology Editing", "CO5 GRAPH"),
+            "search_sort": ("Searching & Sorting Lab", "CO3: Linear, Binary, Interpolation Search & Bubble, Insertion, Selection, Merge Sort", "CO3 SEARCH/SORT"),
+            "hashing": ("Hash Table Lab", "CO3: Separate Chaining & Open Addressing with Linear Probing", "CO3 HASHING"),
+            "trees": ("Tree Structures Lab", "CO4: Binary Tree Traversals, BST, AVL Tree Rotations, Min/Max Heap, B-Tree", "CO4 TREES"),
+            "performance": ("Performance Dashboard", "Empirical Benchmarking & Theoretical Complexity Analysis", "BENCHMARKS"),
+            "learning": ("Learning Outcomes & Documentation", "Course Outcome Mapping CO3, CO4, CO5 & Practicum Guide", "ACADEMIC DOCS")
         }
 
-        title, subtitle = headers.get(module_key, ("NetRoute", ""))
+        title, subtitle, badge = headers.get(module_key, ("NetRoute", "", "DSA"))
         self.title_lbl.config(text=title)
         self.subtitle_lbl.config(text=subtitle)
+        self.badge_lbl.config(text=badge)
 
         # Raise active view
         view = self.views[module_key]

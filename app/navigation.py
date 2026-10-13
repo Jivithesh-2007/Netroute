@@ -8,15 +8,15 @@ from app.theme import Theme
 
 
 class SidebarNav(ttk.Frame):
-    """Sidebar navigation panel with white theme styling."""
+    """Sidebar navigation panel with professional white theme styling."""
 
     MODULES = [
-        ("network", "Network Simulator", "CO5 Graph Routing"),
-        ("search_sort", "Searching & Sorting", "CO3 Search & Sort"),
-        ("hashing", "Hash Table Lab", "CO3 Hashing & Probing"),
-        ("trees", "Tree Structures Lab", "CO4 BST, AVL, Heap, B-Tree"),
-        ("performance", "Performance Dashboard", "Empirical Benchmarking"),
-        ("learning", "Learning Outcomes", "Course Mapping & Docs")
+        ("network", "🌐 Network Simulator", "CO5 Graph Routing"),
+        ("search_sort", "📊 Searching & Sorting", "CO3 Search & Sort"),
+        ("hashing", "⚡ Hash Table Lab", "CO3 Hashing & Probing"),
+        ("trees", "🌲 Tree Structures Lab", "CO4 BST, AVL, Heap, B-Tree"),
+        ("performance", "📈 Performance Dashboard", "Empirical Benchmarking"),
+        ("learning", "📘 Learning Outcomes", "Course Mapping & Docs")
     ]
 
     def __init__(self, parent, on_navigate: Callable[[str], None], **kwargs):
@@ -31,7 +31,7 @@ class SidebarNav(ttk.Frame):
         right_border.pack(side="right", fill="y")
 
         # Brand / Title Banner
-        brand_frame = ttk.Frame(self, style="Sidebar.TFrame", padding=(16, 20, 16, 16))
+        brand_frame = ttk.Frame(self, style="Sidebar.TFrame", padding=(16, 20, 16, 14))
         brand_frame.pack(fill="x")
 
         title_lbl = tk.Label(
@@ -46,15 +46,25 @@ class SidebarNav(ttk.Frame):
 
         subtitle_lbl = tk.Label(
             brand_frame,
-            text="DSA Simulator • 25CS306",
-            font=Theme.FONT_SMALL,
+            text="DSA Simulation Platform",
+            font=Theme.FONT_SMALL_BOLD,
             bg=Theme.BG_SIDEBAR,
             fg=Theme.TEXT_MUTED,
             anchor="w"
         )
         subtitle_lbl.pack(fill="x", pady=(2, 0))
 
-        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=16, pady=8)
+        course_lbl = tk.Label(
+            brand_frame,
+            text="Course: 25CS306",
+            font=Theme.FONT_SMALL,
+            bg=Theme.BG_SIDEBAR,
+            fg=Theme.TEXT_DISABLED,
+            anchor="w"
+        )
+        course_lbl.pack(fill="x", pady=(1, 0))
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=16, pady=6)
 
         # Module Navigation Buttons
         nav_container = ttk.Frame(self, style="Sidebar.TFrame")
@@ -70,18 +80,32 @@ class SidebarNav(ttk.Frame):
             btn.pack(fill="x", pady=2, padx=8)
             self.buttons[mod_key] = btn
 
-        # Footer Version Tag
-        footer_frame = ttk.Frame(self, style="Sidebar.TFrame", padding=12)
+        # Footer Version & Offline Status Tag
+        footer_frame = ttk.Frame(self, style="Sidebar.TFrame", padding=(16, 12))
         footer_frame.pack(side="bottom", fill="x")
 
-        ver_lbl = tk.Label(
-            footer_frame,
-            text="v2.0 • Offline Desktop Engine",
-            font=Theme.FONT_SMALL,
-            bg=Theme.BG_SIDEBAR,
+        ttk.Separator(footer_frame, orient="horizontal").pack(fill="x", pady=(0, 8))
+
+        status_box = tk.Frame(footer_frame, bg=Theme.BG_CARD_ALT, padx=8, pady=6, highlightbackground=Theme.BORDER_COLOR, highlightthickness=1)
+        status_box.pack(fill="x")
+
+        dot_label = tk.Label(
+            status_box,
+            text="●",
+            font=(Theme.FONT_FAMILY, 8),
+            bg=Theme.BG_CARD_ALT,
+            fg=Theme.COLOR_SUCCESS
+        )
+        dot_label.pack(side="left", padx=(0, 4))
+
+        status_text = tk.Label(
+            status_box,
+            text="Offline Engine • v2.5",
+            font=Theme.FONT_SMALL_BOLD,
+            bg=Theme.BG_CARD_ALT,
             fg=Theme.TEXT_MUTED
         )
-        ver_lbl.pack(anchor="w")
+        status_text.pack(side="left")
 
         # Set default active tab
         self._highlight_active()
@@ -97,3 +121,4 @@ class SidebarNav(ttk.Frame):
                 btn.state(["selected"])
             else:
                 btn.state(["!selected"])
+

@@ -138,6 +138,36 @@ class Graph:
         self.routers.clear()
         self.adj_list.clear()
 
+    def is_reachable(self, start_id: str, end_id: str) -> bool:
+        """Check if end_id is reachable from start_id considering online routers."""
+        if start_id not in self.routers or end_id not in self.routers:
+            return False
+        if not self.routers[start_id].is_online or not self.routers[end_id].is_online:
+            return False
+        if start_id == end_id:
+            return True
+
+        visited = {start_id}
+        queue = [start_id]
+        while queue:
+            curr = queue.pop(0)
+            if curr == end_id:
+                return True
+            for nbr in self.get_neighbors(curr, include_offline=False):
+                if nbr not in visited:
+                    visited.add(nbr)
+                    queue.append(nbr)
+        return False
+
+    def get_isolated_routers(self) -> List[str]:
+        """Return list of routers with degree 0."""
+        isolated = []
+        for rid in sorted(self.routers.keys()):
+            nbrs = self.adj_list.get(rid, {})
+            if len(nbrs) == 0:
+                isolated.append(rid)
+        return isolated
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize graph to dictionary."""
         return {
@@ -169,3 +199,135 @@ class Graph:
         with open(filepath, 'r') as f:
             data = json.load(f)
         return cls.from_dict(data)
+
+    @classmethod
+    def create_default_topology(cls) -> 'Graph':
+        """Standard balanced 6-router topology."""
+        g = cls(directed=False)
+        g.add_router(Router("R1", "Core R1", 100, 140))
+        g.add_router(Router("R2", "Edge R2", 280, 90))
+        g.add_router(Router("R3", "Gateway R3", 470, 90))
+        g.add_router(Router("R4", "Switch R4", 170, 270))
+        g.add_router(Router("R5", "Distributor R5", 360, 270))
+        g.add_router(Router("R6", "Border R6", 550, 200))
+
+        g.add_edge("R1", "R2")
+        g.add_edge("R1", "R4")
+        g.add_edge("R2", "R3")
+        g.add_edge("R2", "R5")
+        g.add_edge("R3", "R6")
+        g.add_edge("R4", "R5")
+        g.add_edge("R5", "R6")
+        return g
+
+    @classmethod
+    def create_small_connected(cls) -> 'Graph':
+        """Small 5-router connected ring-and-chord topology."""
+        g = cls(directed=False)
+        g.add_router(Router("R1", "Access R1", 110, 180))
+        g.add_router(Router("R2", "Core R2", 240, 90))
+        g.add_router(Router("R3", "Core R3", 390, 90))
+        g.add_router(Router("R4", "Edge R4", 240, 270))
+        g.add_router(Router("R5", "Dest R5", 510, 180))
+
+        g.add_edge("R1", "R2")
+        g.add_edge("R1", "R4")
+        g.add_edge("R2", "R3")
+        g.add_edge("R2", "R4")
+        g.add_edge("R3", "R5")
+        g.add_edge("R4", "R5")
+        return g
+
+    @classmethod
+    def create_medium_network(cls) -> 'Graph':
+        """Realistic 9-router hierarchical network."""
+        g = cls(directed=False)
+        g.add_router(Router("R1", "Core R1", 100, 180))
+        g.add_router(Router("R2", "Dist R2", 240, 80))
+        g.add_router(Router("R3", "Dist R3", 240, 280))
+        g.add_router(Router("R4", "Transit R4", 380, 80))
+        g.add_router(Router("R5", "Center R5", 380, 180))
+        g.add_router(Router("R6", "Transit R6", 380, 280))
+        g.add_router(Router("R7", "Edge R7", 520, 110))
+        g.add_router(Router("R8", "Edge R8", 520, 250))
+        g.add_router(Router("R9", "Gateway R9", 640, 180))
+
+        g.add_edge("R1", "R2")
+        g.add_edge("R1", "R3")
+        g.add_edge("R2", "R4")
+        g.add_edge("R2", "R5")
+        g.add_edge("R3", "R5")
+        g.add_edge("R3", "R6")
+        g.add_edge("R4", "R7")
+        g.add_edge("R5", "R7")
+        g.add_edge("R5", "R8")
+        g.add_edge("R6", "R8")
+        g.add_edge("R7", "R9")
+        g.add_edge("R8", "R9")
+        return g
+
+    @classmethod
+    def create_disconnected_network(cls) -> 'Graph':
+        """Topology partitioned into 2 distinct connected components."""
+        g = cls(directed=False)
+        # Component 1
+        g.add_router(Router("R1", "LAN A Core", 110, 120))
+        g.add_router(Router("R2", "LAN A Edge", 250, 100))
+        g.add_router(Router("R3", "LAN A Host", 180, 240))
+        g.add_edge("R1", "R2")
+        g.add_edge("R1", "R3")
+        g.add_edge("R2", "R3")
+
+        # Component 2 (Isolated partition)
+        g.add_router(Router("R4", "LAN B Core", 440, 120))
+        g.add_router(Router("R5", "LAN B Edge", 580, 100))
+        g.add_router(Router("R6", "LAN B Host", 510, 240))
+        g.add_edge("R4", "R5")
+        g.add_edge("R4", "R6")
+        g.add_edge("R5", "R6")
+        return g
+
+    @classmethod
+    def create_alternate_routes(cls) -> 'Graph':
+        """
+        Topology with direct short path (2 hops) vs longer deep branch (4 hops).
+        Demonstrates why BFS guarantees 2 hops while DFS may explore the 4-hop branch!
+        """
+        g = cls(directed=False)
+        g.add_router(Router("R1", "Source R1", 100, 180))
+        g.add_router(Router("R2", "Bridge R2", 280, 80))
+        g.add_router(Router("R3", "Long A R3", 200, 280))
+        g.add_router(Router("R4", "Long B R4", 320, 310))
+        g.add_router(Router("R5", "Long C R5", 440, 280))
+        g.add_router(Router("R6", "Dest R6", 520, 180))
+
+        # Short path: R1 -> R2 -> R6 (2 hops)
+        g.add_edge("R1", "R2")
+        g.add_edge("R2", "R6")
+
+        # Long alternate path: R1 -> R3 -> R4 -> R5 -> R6 (4 hops)
+        g.add_edge("R1", "R3")
+        g.add_edge("R3", "R4")
+        g.add_edge("R4", "R5")
+        g.add_edge("R5", "R6")
+        return g
+
+    @classmethod
+    def create_offline_scenario(cls) -> 'Graph':
+        """Topology where the primary bottleneck router R2 is offline, forcing reroute via R4."""
+        g = cls(directed=False)
+        g.add_router(Router("R1", "Ingress R1", 100, 180))
+        g.add_router(Router("R2", "Primary (Down)", 290, 100, is_online=False))
+        g.add_router(Router("R3", "Backup R3", 290, 270))
+        g.add_router(Router("R4", "Backup R4", 430, 270))
+        g.add_router(Router("R5", "Egress R5", 550, 180))
+
+        # Direct primary link through offline R2
+        g.add_edge("R1", "R2")
+        g.add_edge("R2", "R5")
+
+        # Redundant online link through R3 and R4
+        g.add_edge("R1", "R3")
+        g.add_edge("R3", "R4")
+        g.add_edge("R4", "R5")
+        return g
