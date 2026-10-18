@@ -1,15 +1,176 @@
-"""
-Reusable desktop GUI components for NetRoute (Cards, Stat Boxes, Control Bar, Console Log, Zoom Controls).
-"""
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from typing import Callable, Optional
-from app.theme import Theme
+from typing import Callable, Optional, List, Any
+from network import SimulationStep, SimulationResult
+
+
+class Theme:
+    BG_DARK = "#F5F7FB"
+    BG_SIDEBAR = "#FFFFFF"
+    BG_CARD = "#FFFFFF"
+    BG_CARD_ALT = "#F1F5F9"
+    BG_CANVAS = "#FFFFFF"
+    BG_SELECTED = "#DBEAFE"
+
+    ACCENT_BLUE = "#2563EB"
+    ACCENT_HOVER = "#1D4ED8"
+    ACCENT_CYAN = "#0EA5E9"
+    ACCENT_INDIGO = "#4F46E5"
+
+    COLOR_SUCCESS = "#15803D"
+    COLOR_WARNING = "#D97706"
+    COLOR_EXPLORE = "#D97706"
+    COLOR_ERROR = "#DC2626"
+    COLOR_OFFLINE = "#94A3B8"
+    COLOR_PACKET = "#2563EB"
+
+    TEXT_MAIN = "#172033"
+    TEXT_MUTED = "#64748B"
+    TEXT_DISABLED = "#94A3B8"
+    TEXT_LIGHT = "#FFFFFF"
+    TEXT_DARK = "#172033"
+
+    BORDER_COLOR = "#E2E8F0"
+    BORDER_LIGHT = "#F1F5F9"
+
+    FONT_FAMILY = "Helvetica"
+    FONT_TITLE = (FONT_FAMILY, 15, "bold")
+    FONT_HEADER = (FONT_FAMILY, 13, "bold")
+    FONT_SUBTITLE = (FONT_FAMILY, 10, "normal")
+    FONT_SECTION = (FONT_FAMILY, 11, "bold")
+    FONT_BODY = (FONT_FAMILY, 10, "normal")
+    FONT_BOLD = (FONT_FAMILY, 10, "bold")
+    FONT_SMALL = (FONT_FAMILY, 9, "normal")
+    FONT_SMALL_BOLD = (FONT_FAMILY, 9, "bold")
+    FONT_MONO = ("Menlo", 9, "normal") if "darwin" in __import__("sys").platform else ("Courier", 9, "normal")
+
+    @classmethod
+    def setup_styles(cls, root: tk.Tk):
+        style = ttk.Style(root)
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+
+        style.configure("TFrame", background=cls.BG_DARK)
+        style.configure("Sidebar.TFrame", background=cls.BG_SIDEBAR)
+        style.configure("Card.TFrame", background=cls.BG_CARD)
+        style.configure("CardAlt.TFrame", background=cls.BG_CARD_ALT)
+        style.configure("Subtle.TFrame", background=cls.BG_CARD_ALT)
+
+        style.configure("TLabel", background=cls.BG_DARK, foreground=cls.TEXT_MAIN, font=cls.FONT_BODY)
+        style.configure("Header.TLabel", background=cls.BG_DARK, foreground=cls.TEXT_MAIN, font=cls.FONT_TITLE)
+        style.configure("Subtitle.TLabel", background=cls.BG_DARK, foreground=cls.TEXT_MUTED, font=cls.FONT_SUBTITLE)
+        style.configure("Card.TLabel", background=cls.BG_CARD, foreground=cls.TEXT_MAIN, font=cls.FONT_BODY)
+        style.configure("CardTitle.TLabel", background=cls.BG_CARD, foreground=cls.TEXT_MAIN, font=cls.FONT_SECTION)
+        style.configure("CardSubtitle.TLabel", background=cls.BG_CARD, foreground=cls.TEXT_MUTED, font=cls.FONT_SMALL)
+        style.configure("Muted.TLabel", background=cls.BG_DARK, foreground=cls.TEXT_MUTED, font=cls.FONT_SMALL)
+        style.configure("PanelMuted.TLabel", background=cls.BG_CARD_ALT, foreground=cls.TEXT_MUTED, font=cls.FONT_SMALL)
+
+        style.configure("TButton",
+                        background=cls.BG_CARD_ALT,
+                        foreground=cls.TEXT_MAIN,
+                        font=cls.FONT_BOLD,
+                        borderwidth=1,
+                        relief="flat",
+                        focuscolor="none",
+                        padding=(10, 5))
+        style.map("TButton",
+                  background=[("pressed", "#E2E8F0"), ("active", "#EEF2F6"), ("disabled", "#F8FAFC")],
+                  foreground=[("pressed", cls.TEXT_MAIN), ("active", cls.TEXT_MAIN), ("disabled", cls.TEXT_DISABLED)])
+
+        style.configure("Primary.TButton",
+                        background=cls.ACCENT_BLUE,
+                        foreground=cls.TEXT_LIGHT,
+                        font=cls.FONT_BOLD,
+                        borderwidth=0,
+                        relief="flat",
+                        focuscolor="none",
+                        padding=(12, 5))
+        style.map("Primary.TButton",
+                  background=[("pressed", "#1E40AF"), ("active", cls.ACCENT_HOVER), ("disabled", "#93C5FD")],
+                  foreground=[("disabled", "#DBEAFE")])
+
+        style.configure("Success.TButton",
+                        background=cls.COLOR_SUCCESS,
+                        foreground=cls.TEXT_LIGHT,
+                        font=cls.FONT_BOLD,
+                        padding=(10, 5))
+        style.map("Success.TButton",
+                  background=[("active", "#166534"), ("disabled", "#86EFAC")])
+
+        style.configure("Danger.TButton",
+                        background=cls.COLOR_ERROR,
+                        foreground=cls.TEXT_LIGHT,
+                        font=cls.FONT_BOLD,
+                        padding=(10, 5))
+        style.map("Danger.TButton",
+                  background=[("active", "#B91C1C"), ("disabled", "#FCA5A5")])
+
+        style.configure("Tool.TButton",
+                        background=cls.BG_CARD,
+                        foreground=cls.TEXT_MAIN,
+                        font=cls.FONT_SMALL_BOLD,
+                        borderwidth=1,
+                        relief="flat",
+                        padding=(8, 4))
+        style.map("Tool.TButton",
+                  background=[("active", cls.BG_SELECTED), ("disabled", cls.BG_CARD_ALT)],
+                  foreground=[("active", cls.ACCENT_BLUE), ("disabled", cls.TEXT_DISABLED)])
+
+        style.configure("Nav.TButton",
+                        background=cls.BG_SIDEBAR,
+                        foreground=cls.TEXT_MUTED,
+                        font=cls.FONT_BOLD,
+                        anchor="w",
+                        padding=(14, 9),
+                        borderwidth=0)
+        style.map("Nav.TButton",
+                  background=[("selected", cls.BG_SELECTED), ("active", cls.BG_CARD_ALT)],
+                  foreground=[("selected", cls.ACCENT_BLUE), ("active", cls.TEXT_MAIN)])
+
+        style.configure("TNotebook", background=cls.BG_DARK, borderwidth=0)
+        style.configure("TNotebook.Tab",
+                        background=cls.BG_CARD_ALT,
+                        foreground=cls.TEXT_MUTED,
+                        padding=(12, 6),
+                        font=cls.FONT_BOLD)
+        style.map("TNotebook.Tab",
+                  background=[("selected", cls.BG_CARD), ("active", "#F1F5F9")],
+                  foreground=[("selected", cls.ACCENT_BLUE), ("active", cls.TEXT_MAIN)])
+
+        style.configure("TEntry", fieldbackground=cls.BG_CARD, foreground=cls.TEXT_MAIN, insertcolor=cls.TEXT_MAIN, padding=4)
+        style.configure("TCombobox", fieldbackground=cls.BG_CARD, background=cls.BG_CARD_ALT, foreground=cls.TEXT_MAIN, padding=4)
+        style.map("TCombobox",
+                  fieldbackground=[("readonly", cls.BG_CARD)],
+                  selectbackground=[("readonly", cls.BG_SELECTED)],
+                  selectforeground=[("readonly", cls.TEXT_MAIN)])
+
+        style.configure("TPanedwindow", background=cls.BG_DARK)
+        style.configure("Sash", sashthickness=5, gripcount=0, background=cls.BORDER_COLOR)
+
+        style.configure("TScrollbar", background="#CBD5E1", troughcolor=cls.BG_DARK, borderwidth=0, arrowsize=11)
+
+        style.configure("Treeview",
+                        background=cls.BG_CARD,
+                        fieldbackground=cls.BG_CARD,
+                        foreground=cls.TEXT_MAIN,
+                        font=cls.FONT_BODY,
+                        rowheight=26,
+                        borderwidth=0)
+        style.configure("Treeview.Heading",
+                        background=cls.BG_CARD_ALT,
+                        foreground=cls.TEXT_MAIN,
+                        font=cls.FONT_BOLD,
+                        padding=5)
+        style.map("Treeview",
+                  background=[("selected", cls.BG_SELECTED)],
+                  foreground=[("selected", cls.TEXT_MAIN)])
+
+        style.configure("TSeparator", background=cls.BORDER_COLOR)
 
 
 class CardFrame(ttk.Frame):
-    """Container frame with card padding, light surface background, and clean border."""
-
     def __init__(self, parent, title: Optional[str] = None, subtitle: Optional[str] = None, padding: int = 10, **kwargs):
         super().__init__(parent, style="Card.TFrame", **kwargs)
         self.config(padding=padding)
@@ -27,8 +188,6 @@ class CardFrame(ttk.Frame):
 
 
 class StatCard(ttk.Frame):
-    """Compact status display card for operations, dataset size, and runtime metrics."""
-
     def __init__(self, parent, title: str, value: str = "--", accent_color: str = Theme.ACCENT_BLUE, **kwargs):
         super().__init__(parent, style="CardAlt.TFrame", padding=(10, 8), **kwargs)
         self.accent_color = accent_color
@@ -53,15 +212,12 @@ class StatCard(ttk.Frame):
         self.val_lbl.pack(anchor="w", pady=(2, 0), fill="x")
 
     def update_value(self, new_value: str, color: Optional[str] = None):
-        """Update stat card label text and optional color."""
         self.val_lbl.config(text=str(new_value))
         if color:
             self.val_lbl.config(fg=color)
 
 
 class ConsoleLog(ttk.Frame):
-    """Scrollable event console log displaying step-by-step algorithm output with Copy & Export."""
-
     def __init__(self, parent, height: int = 6, **kwargs):
         super().__init__(parent, style="Card.TFrame", padding=(10, 8), **kwargs)
 
@@ -106,7 +262,6 @@ class ConsoleLog(ttk.Frame):
         self.scrollbar.pack(side="right", fill="y")
         self.text.pack(side="left", fill="both", expand=True)
 
-        # Configure color tags
         self.text.tag_config("info", foreground=Theme.TEXT_MAIN)
         self.text.tag_config("explore", foreground=Theme.COLOR_EXPLORE)
         self.text.tag_config("success", foreground=Theme.COLOR_SUCCESS)
@@ -115,7 +270,6 @@ class ConsoleLog(ttk.Frame):
         self.text.tag_config("route", foreground=Theme.ACCENT_BLUE)
 
     def log(self, message: str, level: str = "info"):
-        """Append log line to console with level formatting."""
         self.text.config(state="normal")
         prefix = "• "
         tag = "info"
@@ -137,13 +291,11 @@ class ConsoleLog(ttk.Frame):
         self.text.config(state="disabled")
 
     def clear(self):
-        """Clear all console text."""
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
         self.text.config(state="disabled")
 
     def copy_log(self):
-        """Copy current log content to system clipboard."""
         self.text.config(state="normal")
         content = self.text.get("1.0", "end-1c")
         self.text.config(state="disabled")
@@ -157,7 +309,6 @@ class ConsoleLog(ttk.Frame):
             messagebox.showinfo("Log Empty", "Execution log is currently empty.")
 
     def export_log(self):
-        """Export log content to local text file."""
         self.text.config(state="normal")
         content = self.text.get("1.0", "end-1c")
         self.text.config(state="disabled")
@@ -180,8 +331,6 @@ class ConsoleLog(ttk.Frame):
 
 
 class ControlBar(ttk.Frame):
-    """Control panel for Play, Pause, Step, Reset, Step Indicator, and Animation Speed."""
-
     def __init__(
         self,
         parent,
@@ -200,7 +349,6 @@ class ControlBar(ttk.Frame):
         self.on_reset = on_reset
         self.on_speed_change = on_speed_change
 
-        # Controls Layout - Left aligned actions
         left_ctrls = ttk.Frame(self, style="Card.TFrame")
         left_ctrls.pack(side="left")
 
@@ -216,7 +364,6 @@ class ControlBar(ttk.Frame):
         self.btn_reset = ttk.Button(left_ctrls, text="↺ Reset", command=self.on_reset, width=8)
         self.btn_reset.pack(side="left", padx=(0, 12))
 
-        # Step Progress Indicator Badge
         self.step_frame = ttk.Frame(left_ctrls, style="CardAlt.TFrame", padding=(8, 4))
         self.step_frame.pack(side="left")
 
@@ -229,7 +376,6 @@ class ControlBar(ttk.Frame):
         )
         self.step_lbl.pack()
 
-        # Speed Control Slider - Right aligned
         speed_frame = ttk.Frame(self, style="Card.TFrame")
         speed_frame.pack(side="right")
 
@@ -264,7 +410,6 @@ class ControlBar(ttk.Frame):
             self.on_speed_change(ms)
 
     def update_step_indicator(self, current: int, total: int):
-        """Update step progress badge."""
         if total > 0:
             self.step_lbl.config(
                 text=f"Step: {current} / {total}",
@@ -274,11 +419,9 @@ class ControlBar(ttk.Frame):
             self.step_lbl.config(text="Step: Complete", foreground=Theme.COLOR_SUCCESS)
 
     def reset_step_indicator(self):
-        """Reset step badge to idle."""
         self.step_lbl.config(text="Step: Idle", foreground=Theme.TEXT_MUTED)
 
     def set_running_state(self, is_running: bool, is_paused: bool = False):
-        """Adjust button states according to simulation status."""
         if is_running:
             self.btn_play.state(["disabled"])
             self.btn_pause.state(["!disabled"])
@@ -294,8 +437,6 @@ class ControlBar(ttk.Frame):
 
 
 class ZoomPanToolbar(ttk.Frame):
-    """Compact toolbar for Zoom In, Zoom Out, Fit to View, and Reset Zoom."""
-
     def __init__(
         self,
         parent,
@@ -319,3 +460,83 @@ class ZoomPanToolbar(ttk.Frame):
         self.btn_reset = ttk.Button(self, text="1:1 Reset", style="Tool.TButton", command=on_reset_zoom, width=7)
         self.btn_reset.pack(side="left", padx=2)
 
+
+class SimulationService:
+    def __init__(self, root_widget: Optional[Any] = None):
+        self.root = root_widget
+        self.steps: List[SimulationStep] = []
+        self.current_step_index: int = -1
+        self.is_running: bool = False
+        self.is_paused: bool = False
+        self.speed_ms: int = 500
+        self._timer_id: Optional[str] = None
+        self.on_step_callback: Optional[Callable[[SimulationStep, int, int], None]] = None
+        self.on_complete_callback: Optional[Callable[[], None]] = None
+
+    def load_simulation(
+        self,
+        result: SimulationResult,
+        on_step: Callable[[SimulationStep, int, int], None],
+        on_complete: Optional[Callable[[], None]] = None
+    ):
+        self.stop()
+        self.steps = result.steps
+        self.current_step_index = -1
+        self.on_step_callback = on_step
+        self.on_complete_callback = on_complete
+
+    def play(self):
+        if not self.steps:
+            return
+        self.is_running = True
+        self.is_paused = False
+        self._schedule_next_step()
+
+    def pause(self):
+        self.is_paused = True
+        self.is_running = False
+        self._cancel_timer()
+
+    def stop(self):
+        self.is_running = False
+        self.is_paused = False
+        self._cancel_timer()
+        self.current_step_index = -1
+
+    def step_forward(self):
+        if not self.steps:
+            return
+        if self.current_step_index + 1 < len(self.steps):
+            self.current_step_index += 1
+            step = self.steps[self.current_step_index]
+            if self.on_step_callback:
+                self.on_step_callback(step, self.current_step_index + 1, len(self.steps))
+
+    def set_speed(self, delay_ms: int):
+        self.speed_ms = max(50, min(2000, delay_ms))
+
+    def _schedule_next_step(self):
+        self._cancel_timer()
+        if not self.is_running or self.is_paused:
+            return
+
+        if self.current_step_index + 1 < len(self.steps):
+            self.current_step_index += 1
+            step = self.steps[self.current_step_index]
+            if self.on_step_callback:
+                self.on_step_callback(step, self.current_step_index + 1, len(self.steps))
+
+            if self.root:
+                self._timer_id = self.root.after(self.speed_ms, self._schedule_next_step)
+        else:
+            self.is_running = False
+            if self.on_complete_callback:
+                self.on_complete_callback()
+
+    def _cancel_timer(self):
+        if self._timer_id and self.root:
+            try:
+                self.root.after_cancel(self._timer_id)
+            except Exception:
+                pass
+            self._timer_id = None

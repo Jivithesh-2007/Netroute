@@ -1,36 +1,22 @@
-"""
-MODULE C — TREE STRUCTURES LAB (CO4)
-Interactive tree renderer for Binary Search Tree, AVL Tree, Min/Max Heap,
-B-Tree multi-key nodes, and Preorder/Inorder/Postorder/Level-order traversals,
-with Zoom/Pan viewport, fit-to-view auto-scaling, balance factors, and heap array dual-view.
-"""
 import math
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Optional, List, Dict, Any, Tuple
 
-from app.theme import Theme
-from app.widgets import CardFrame, StatCard, ConsoleLog, ControlBar, ZoomPanToolbar
-from models.simulation import SimulationStep, SimulationResult
-from algorithms.binary_search_tree import BinarySearchTree
-from algorithms.avl_tree import AVLTree
-from algorithms.heap import MinHeap, MaxHeap
-from algorithms.b_tree import BTree
-from algorithms.tree_traversals import (
-    preorder_traversal, inorder_traversal, postorder_traversal, levelorder_traversal, get_tree_metrics
+from theme import Theme, CardFrame, StatCard, ConsoleLog, ControlBar, ZoomPanToolbar, SimulationService
+from network import SimulationStep, SimulationResult
+from algorithms import (
+    BinarySearchTree, AVLTree, MinHeap, MaxHeap, BTree,
+    preorder_traversal, inorder_traversal, postorder_traversal, levelorder_traversal,
+    get_tree_metrics, parse_integer
 )
-from services.simulation_service import SimulationService
-from utils.validation import parse_integer
 
 
 class TreeLabView(ttk.Frame):
-    """Tree Structures Lab module view with zoomable canvas and dual-view inspector."""
-
     def __init__(self, parent, app=None, **kwargs):
         super().__init__(parent, style="TFrame", **kwargs)
         self.app = app
 
-        # Data Structure Instances
         self.bst = BinarySearchTree()
         self.avl = AVLTree()
         self.min_heap = MinHeap()
@@ -39,13 +25,11 @@ class TreeLabView(ttk.Frame):
 
         self.sim_service = SimulationService(root_widget=self)
 
-        # Viewport Transformation for Tree Canvas
         self.scale: float = 1.0
         self.offset_x: float = 0.0
         self.offset_y: float = 0.0
         self._drag_data = {"start_x": 0, "start_y": 0, "is_panning": False}
 
-        # Seed sample data into BST, AVL, Heaps & B-Tree
         for k in [50, 30, 70, 20, 40, 60, 80]:
             self.bst.insert(k)
             self.avl.insert(k)
@@ -57,29 +41,24 @@ class TreeLabView(ttk.Frame):
         self.after(120, self.fit_to_view)
 
     def on_hide(self):
-        """Lifecycle hook when module view is hidden."""
         self.sim_service.stop()
 
     def _build_ui(self):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # PanedWindow for Left Work Area vs Right Inspector
         self.paned = ttk.Panedwindow(self, orient="horizontal")
         self.paned.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
 
-        # === LEFT WORK AREA ===
         left_area = ttk.Frame(self.paned, style="TFrame")
         self.paned.add(left_area, weight=3)
 
         left_area.grid_rowconfigure(1, weight=1)
         left_area.grid_columnconfigure(0, weight=1)
 
-        # Toolbar Frame
         toolbar = CardFrame(left_area, padding=(8, 6))
         toolbar.grid(row=0, column=0, sticky="ew")
 
-        # Row 1: Tree Type Selector & Operations
         row1 = ttk.Frame(toolbar, style="Card.TFrame")
         row1.pack(fill="x", pady=(0, 6))
 
@@ -118,7 +97,6 @@ class TreeLabView(ttk.Frame):
         btn_clear = ttk.Button(row1, text="↺ Clear", style="Tool.TButton", command=self.do_clear)
         btn_clear.pack(side="left", padx=2)
 
-        # Row 2: Traversals Sub-Toolbar
         row2 = ttk.Frame(toolbar, style="Card.TFrame")
         row2.pack(fill="x")
 
@@ -130,7 +108,6 @@ class TreeLabView(ttk.Frame):
         btn_trav = ttk.Button(row2, text="▶ Run Traversal", style="Tool.TButton", command=self.do_traversal)
         btn_trav.pack(side="left", padx=2)
 
-        # Canvas Area for Tree Graphics with Zoom Toolbar
         canvas_card = CardFrame(left_area, padding=4)
         canvas_card.grid(row=1, column=0, sticky="nsew", pady=(6, 6))
 
@@ -140,7 +117,6 @@ class TreeLabView(ttk.Frame):
         self.canvas = tk.Canvas(canvas_card, bg=Theme.BG_CANVAS, highlightthickness=0)
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
-        # Zoom & Pan Overlay Toolbar inside Canvas
         self.zoom_toolbar = ZoomPanToolbar(
             canvas_card,
             on_zoom_in=self.zoom_in,
@@ -150,13 +126,11 @@ class TreeLabView(ttk.Frame):
         )
         self.zoom_toolbar.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
 
-        # Pan Bindings
         self.canvas.bind("<ButtonPress-1>", self._on_pan_start)
         self.canvas.bind("<B1-Motion>", self._on_pan_drag)
         self.canvas.bind("<ButtonRelease-1>", self._on_pan_end)
         self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
 
-        # Control Bar
         self.control_bar = ControlBar(
             left_area,
             on_play=self.sim_service.play,
@@ -167,11 +141,9 @@ class TreeLabView(ttk.Frame):
         )
         self.control_bar.grid(row=2, column=0, sticky="ew", pady=(0, 6))
 
-        # Console Log
         self.console = ConsoleLog(left_area, height=5)
         self.console.grid(row=3, column=0, sticky="ew")
 
-        # === RIGHT INSPECTOR ===
         right_panel = ttk.Frame(self.paned, style="TFrame")
         self.paned.add(right_panel, weight=1)
 
@@ -197,21 +169,18 @@ class TreeLabView(ttk.Frame):
         self.card_balance = StatCard(s_grid, "Tree State", "Balanced", Theme.COLOR_EXPLORE)
         self.card_balance.grid(row=1, column=1, sticky="ew", padx=2, pady=2)
 
-        # Dual Inspector Notebook (Heap Array / Rotations / Specs)
         inspect_card = CardFrame(right_panel, title="Internal State & Dual View", padding=8)
         inspect_card.grid(row=1, column=0, sticky="nsew")
 
         self.inspect_notebook = ttk.Notebook(inspect_card)
         self.inspect_notebook.pack(fill="both", expand=True)
 
-        # Tab: Heap Array Dual View
         self.heap_tab = ttk.Frame(self.inspect_notebook, style="Card.TFrame", padding=6)
         self.inspect_notebook.add(self.heap_tab, text="  Heap Array Dual View  ")
 
         self.heap_text = tk.Text(self.heap_tab, bg=Theme.BG_CARD, fg=Theme.TEXT_MAIN, font=Theme.FONT_MONO, relief="solid", bd=1)
         self.heap_text.pack(fill="both", expand=True)
 
-        # Tab: Tree Complexity & Invariants
         self.specs_tab = ttk.Frame(self.inspect_notebook, style="Card.TFrame", padding=6)
         self.inspect_notebook.add(self.specs_tab, text="  Tree Specifications  ")
 
@@ -245,9 +214,6 @@ class TreeLabView(ttk.Frame):
         self.reset_simulation()
         self.fit_to_view()
 
-    # -------------------------------------------------------------------------
-    # VIEWPORT COORDINATE TRANSFORMS
-    # -------------------------------------------------------------------------
     def world_to_screen(self, wx: float, wy: float) -> Tuple[float, float]:
         return wx * self.scale + self.offset_x, wy * self.scale + self.offset_y
 
@@ -307,9 +273,6 @@ class TreeLabView(ttk.Frame):
         elif event.delta < 0:
             self.zoom(1.0 / 1.15, event.x, event.y)
 
-    # -------------------------------------------------------------------------
-    # TREE OPERATIONS
-    # -------------------------------------------------------------------------
     def do_insert(self):
         valid, key, msg = parse_integer(self.key_entry.get())
         if not valid:
@@ -427,9 +390,6 @@ class TreeLabView(ttk.Frame):
         self.control_bar.reset_step_indicator()
         self.redraw_active_tree()
 
-    # -------------------------------------------------------------------------
-    # TREE RENDERING & DUAL VIEW
-    # -------------------------------------------------------------------------
     def redraw_active_tree(self, highlight_key: Optional[int] = None):
         self.canvas.delete("all")
         tree_type = self.tree_combo.get()
@@ -498,7 +458,6 @@ class TreeLabView(ttk.Frame):
         sx, sy = self.world_to_screen(wx, wy)
         r = max(14.0, min(26.0, 18.0 * self.scale))
 
-        # Children Edges
         if getattr(node, 'left', None):
             lx_w, ly_w = wx - x_offset, wy + 60.0
             lsx, lsy = self.world_to_screen(lx_w, ly_w)
@@ -511,7 +470,6 @@ class TreeLabView(ttk.Frame):
             self.canvas.create_line(sx, sy, rsx, rsy, fill=Theme.BORDER_COLOR, width=max(1, int(2 * self.scale)))
             self._draw_binary_tree(node.right, rx_w, ry_w, max(24.0, x_offset * 0.55), highlight_key, is_avl)
 
-        # Node Circle
         fill = Theme.BG_SELECTED
         outline = Theme.ACCENT_BLUE
         text_color = Theme.ACCENT_BLUE
@@ -524,7 +482,6 @@ class TreeLabView(ttk.Frame):
         font_size = max(8, min(12, int(9 * self.scale)))
         self.canvas.create_text(sx, sy, text=str(node.key), fill=text_color, font=(Theme.FONT_FAMILY, font_size, "bold"))
 
-        # AVL Balance Factor & Height Tag
         if is_avl:
             bf = node.get_balance_factor()
             bf_color = Theme.COLOR_SUCCESS if abs(bf) <= 1 else Theme.COLOR_ERROR
@@ -573,7 +530,6 @@ class TreeLabView(ttk.Frame):
             self.canvas.create_oval(sx - r, sy - r, sx + r, sy + r, fill=fill, outline=outline, width=2)
             font_size = max(8, min(12, int(9 * self.scale)))
             self.canvas.create_text(sx, sy, text=str(val), fill=text_color, font=(Theme.FONT_FAMILY, font_size, "bold"))
-            # Index label below
             self.canvas.create_text(sx, sy + r + 8, text=f"[{idx}]", fill=Theme.TEXT_MUTED, font=Theme.FONT_SMALL)
 
         _draw_heap_node(0, wx, wy, x_offset)
