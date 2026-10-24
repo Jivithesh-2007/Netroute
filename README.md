@@ -1,65 +1,78 @@
-# NetRoute – Educational DSA & Network Routing Simulator
+# NetRoute – Interactive Data Structures & Network Routing Simulator
 
-**Course:** Data Structures & Algorithms  
-**Academic Level:** College Micro-Project  
-**Implementation:** Native Python 3 Desktop App (Tkinter)  
+**Course:** Data Structures and Algorithms  
+**Academic Level:** College Micro-Project (CO3, CO4, CO5)  
+**Implementation:** Standalone Native Python 3 Desktop Application (Tkinter, ttk, Canvas)  
 **Dependencies:** Zero external dependencies (Standard Library only)
 
 ---
 
 ## 1. Project Overview
 
-**NetRoute** is a lightweight, educational desktop simulator demonstrating key Data Structures and Algorithms with simple computer networking applications:
-1. **Network Routing:** Graph representation with Breadth-First Search (BFS shortest-hop routing) and Depth-First Search (DFS route discovery).
-2. **Searching & Sorting:** Linear Search, Binary Search, Bubble Sort, Selection Sort, and Insertion Sort.
-3. **Hashing:** Hash Table with Separate Chaining collision handling.
-4. **Trees:** Binary Search Tree (BST) insertion, search, and Inorder/Preorder/Postorder traversals.
+**NetRoute** is an interactive educational desktop simulator designed to visualize and explore core Data Structures and Algorithms with a focus on computer networking and routing.
+
+Built with a light theme (`#F4F7FC` background, `#FFFFFF` cards, `#2563EB` primary blue, `#0EA5E9` secondary cyan, `#16A34A` success green, `#EA580C` warning orange, and `#172033` high-contrast typography), NetRoute provides genuine algorithm execution, interactive topology editing, step-by-step queue/stack visualization, packet animation along discovered routes, and empirical performance benchmarking.
 
 ---
 
-## 2. Modular Architecture (Exactly 8 Modules, Max 100 Lines Each)
+## 2. Core Academic Modules
 
-The entire project is structured into **8 clean, readable modules**, each written using standard beginner-friendly Python syntax and strictly under 100 lines:
+### CO5 — Network Routing & Graph Algorithms
+- **Interactive Topology Canvas:** Pan, zoom, fit-to-view, and drag-and-drop router positioning.
+- **Device & Link Management:** Add/remove routers, add/remove connections, and toggle router online/offline power state.
+- **Shortest-Hop Routing (BFS):** Genuine Breadth-First Search using a FIFO queue to discover optimal shortest-hop paths.
+- **Path Discovery (DFS):** Depth-First Search using a LIFO stack to discover reachability through network branches.
+- **Live Queue/Stack Inspection:** Shows the real-time internal state of the traversal data structure during exploration.
+- **Packet Animation:** Visual packet movement along the exact route with Play, Pause, Step, and Speed controls.
+- **Dual Representations (PrO-13 & PrO-14):** Live synchronized Adjacency List $O(V+E)$ and Adjacency Matrix $O(V^2)$ representations with connected components analysis.
 
-| Module | Purpose | Lines of Code | Key Functions / Classes |
-| :--- | :--- | :---: | :--- |
-| **`main.py`** | Application Entry Point | ~15 | `main()` |
-| **`theme.py`** | Color Palette & Font Styles | ~23 | `BG_MAIN`, `PRIMARY`, `FONT_NORMAL` |
-| **`network.py`** | Graph Model & Routing Algorithms | ~72 | `Graph`, `bfs()`, `dfs()`, `load_sample()` |
-| **`algorithms.py`** | Searching, Sorting & Hashing Logic | ~91 | `linear_search()`, `binary_search()`, `bubble_sort()`, `HashTable` |
-| **`network_ui.py`** | Network Visualizer & Routing Canvas | ~94 | `NetworkView` (Node & Link drawing, path highlight) |
-| **`labs_ui.py`** | UI for Search, Sort & Hash Table | ~83 | `LabsFrame` (Array sorting, target search, bucket list) |
-| **`tree_ui.py`** | BST Visualizer & Tree Logic | ~96 | `BSTNode`, `BST`, `TreeFrame` (Recursive canvas drawing) |
-| **`app.py`** | Main Application Window & Sidebar | ~74 | `NetRouteApp` (Sidebar navigation & view switcher) |
+### CO3 — Searching, Sorting & Hashing
+- **Searching:** Linear Search, Iterative Binary Search, Recursive Binary Search, and Interpolation Search with real comparison counters.
+- **Sorting Visualizer:** Bubble Sort, Insertion Sort, Selection Sort, and Merge Sort rendered as colorful animated bars on Canvas with comparison, swap, and write highlights.
+- **Practical Scheduling (PrO-9):** Demonstration of using sorting algorithms to schedule network tasks by Priority, Deadline (Earliest Deadline First), or Duration (Shortest Job First).
+- **Hashing (PrO-7):** Separate Chaining (linked lists per bucket) and Open Addressing via Linear Probing with tombstone markers for safe deletions, load-factor tracking ($\alpha$), and probe count analysis.
+
+### CO4 — Tree Structures
+- **Binary Search Tree (BST):** Insertion, search, and 3-case deletion (leaf, single child, two children with inorder successor replacement).
+- **Self-Balancing AVL Tree (PrO-12):** Rotations (LL, RR, LR, RL) with height and balance factor ($BF = H_L - H_R$) tracking.
+- **Binary Heap Priority Queue:** Min-Heap and Max-Heap with dual synchronized tree and 1D array views ($2i+1, 2i+2$).
+- **B-Tree (Multi-Key):** Multi-key node insertion with proactive node splitting, searching, and deletion.
+- **Tree Traversals (PrO-11):** Preorder, Inorder, Postorder, and Level-Order traversals.
+- **BST vs AVL Evaluation:** Empirical demonstration showing how skewed inputs degrade BSTs to $O(N)$ while AVL maintains $O(\log N)$ bounds.
+
+### Performance Dashboard & Academic Outcomes
+- **Empirical Benchmarks:** Live runtime measurements and operation counters across user-configured dataset sizes.
+- **Theoretical Complexity Reference:** Big-O references across best, average, and worst cases for time and space.
+- **Course Mapping:** Explicit mapping to Course Outcomes (CO3, CO4, CO5) and Practicums (PrO-7 through PrO-15).
 
 ---
 
-## 3. How to Run
+## 3. Project Architecture
 
-Run the application directly using standard Python 3:
+The application is structured into native Python modules with zero external pip dependencies:
 
-```bash
-python3 main.py
+```
+NetRoute/
+├── main.py                 # Application launch entry point
+├── app.py                  # Main window shell, navigation, header, and lifecycle management
+├── network_ui.py           # Network simulator UI, canvas, topology editing, routing, packet animation
+├── labs_ui.py              # Searching, Sorting, Hashing, Benchmarks, and Learning Outcomes UI
+├── tree_ui.py              # Tree structures lab UI (BST, AVL, Heap, B-Tree)
+├── algorithms.py           # Core DSA implementations (search, sort, hash, trees, benchmark logic)
+├── network.py              # Graph model, router model, BFS/DFS routing, and topology validation
+├── theme.py                # Color palette, TTK styling, UI widgets, and simulation service
+├── data/
+│   └── sample_network.json # Example 6-router network topology preset
+├── requirements.txt        # Standard library dependencies declaration
+└── README.md               # Project documentation and presentation guide
 ```
 
 ---
 
-## 4. Viva / Explanation Cheat Sheet for College Presentation
+## 4. How to Run
 
-### Graph & Routing (`network.py`)
-- **BFS (Breadth-First Search):** Uses a **FIFO Queue** (`pop(0)`). Discovers level-by-level to guarantee the **shortest hop path** in an unweighted network. Time Complexity: $O(V + E)$.
-- **DFS (Depth-First Search):** Uses a **LIFO Stack** (`pop()`). Explores deep into network branches first. Time Complexity: $O(V + E)$.
+Launch the application directly using standard Python 3:
 
-### Searching & Sorting (`algorithms.py`)
-- **Linear Search:** Checks each element sequentially. $O(N)$ worst case.
-- **Binary Search:** Divides the sorted array in half each time. $O(\log N)$ worst case.
-- **Bubble Sort:** Swaps adjacent elements if out of order. $O(N^2)$ worst case.
-- **Selection Sort:** Finds minimum element and moves it to the front. $O(N^2)$ worst case.
-- **Insertion Sort:** Inserts each element into the correct sorted position. $O(N^2)$ worst case.
-- **Hash Table (Chaining):** Maps `key % size` to a bucket. Uses linked lists/arrays per bucket to handle collisions cleanly. Average lookup: $O(1)$.
-
-### Binary Search Tree (`tree_ui.py`)
-- **BST Property:** For every node, left child values are smaller and right child values are greater.
-- **Inorder Traversal:** Left $\to$ Root $\to$ Right (always prints values in sorted ascending order).
-- **Preorder Traversal:** Root $\to$ Left $\to$ Right.
-- **Postorder Traversal:** Left $\to$ Right $\to$ Root.
+```bash
+python3 main.py
+```
