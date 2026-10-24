@@ -1,77 +1,90 @@
-# NetRoute – Interactive Data Structures & Network Routing Simulator
+# NetRoute — Interactive Network Packet-Routing Simulator
 
-**Course:** Data Structures and Algorithms  
-**Academic Level:** College Micro-Project (CO3, CO4, CO5)  
-**Implementation:** Standalone Native Python 3 Desktop Application (Tkinter, ttk, Canvas)  
-**Dependencies:** Zero external dependencies (Standard Library only)
+An interactive, educational network packet-routing desktop simulator developed with Python, Tkinter, dynamic graph data structures, and Breadth-First Search (BFS) / Depth-First Search (DFS) traversals.
 
----
-
-## 1. Project Overview
-
-**NetRoute** is an interactive educational desktop simulator designed to visualize and explore core Data Structures and Algorithms with a focus on computer networking and routing.
-
-Built with a light theme (`#F4F7FC` background, `#FFFFFF` cards, `#2563EB` primary blue, `#0EA5E9` secondary cyan, `#16A34A` success green, `#EA580C` warning orange, and `#172033` high-contrast typography), NetRoute provides genuine algorithm execution, interactive topology editing, step-by-step queue/stack visualization, packet animation along discovered routes, and empirical performance benchmarking.
+NetRoute maps network routing to foundational computer science concepts, aligning directly with **CO1**, **CO2**, and **CO5** of the Data Structures and Algorithms (DSA) course curriculum.
 
 ---
 
-## 2. Core Academic Modules
+## 1. Academic Course Outcome Mapping
 
-### CO5 — Network Routing & Graph Algorithms
-- **Interactive Topology Canvas:** Pan, zoom, fit-to-view, and drag-and-drop router positioning.
-- **Device & Link Management:** Add/remove routers, add/remove connections, and toggle router online/offline power state.
-- **Shortest-Hop Routing (BFS):** Genuine Breadth-First Search using a FIFO queue to discover optimal shortest-hop paths.
-- **Path Discovery (DFS):** Depth-First Search using a LIFO stack to discover reachability through network branches.
-- **Live Queue/Stack Inspection:** Shows the real-time internal state of the traversal data structure during exploration.
-- **Packet Animation:** Visual packet movement along the exact route with Play, Pause, Step, and Speed controls.
-- **Dual Representations (PrO-13 & PrO-14):** Live synchronized Adjacency List $O(V+E)$ and Adjacency Matrix $O(V^2)$ representations with connected components analysis.
+### CO1 — Develop efficient solutions using stack and/or queue data structures
+- **Queue-Based BFS:** Implements genuine Breadth-First Search using a First-In-First-Out (FIFO) queue (`collections.deque`). Demonstrates level-by-level exploration to discover the unweighted shortest-hop path between source and destination routers.
+- **Stack-Based DFS:** Implements genuine Depth-First Search using an explicit Last-In-First-Out (LIFO) stack (`list`). Demonstrates deep branch exploration and explicit backtracking, showing that DFS discovers valid routes without guaranteeing the shortest path.
+- **Live Queue/Stack Inspector:** Displays live internal data structure states at each execution step, including insertion, removal, and index indicators (Queue Head/Tail, Stack Top).
 
-### CO3 — Searching, Sorting & Hashing
-- **Searching:** Linear Search, Iterative Binary Search, Recursive Binary Search, and Interpolation Search with real comparison counters.
-- **Sorting Visualizer:** Bubble Sort, Insertion Sort, Selection Sort, and Merge Sort rendered as colorful animated bars on Canvas with comparison, swap, and write highlights.
-- **Practical Scheduling (PrO-9):** Demonstration of using sorting algorithms to schedule network tasks by Priority, Deadline (Earliest Deadline First), or Duration (Shortest Job First).
-- **Hashing (PrO-7):** Separate Chaining (linked lists per bucket) and Open Addressing via Linear Probing with tombstone markers for safe deletions, load-factor tracking ($\alpha$), and probe count analysis.
+### CO2 — Use dynamic data structures for efficient storage and retrieval
+- **Dynamic Adjacency List $O(V + E)$:** Serves as the primary dynamic graph representation. Routers (vertices) and transmission lines (edges) are inserted, retrieved, and deleted in real time.
+- **Storage Efficiency:** Avoids the fixed-size quadratic memory footprint of static matrices during active topology editing.
+- **Synchronized Visual Model:** Every visual node and connection on the canvas maps directly to the underlying dynamic graph model.
 
-### CO4 — Tree Structures
-- **Binary Search Tree (BST):** Insertion, search, and 3-case deletion (leaf, single child, two children with inorder successor replacement).
-- **Self-Balancing AVL Tree (PrO-12):** Rotations (LL, RR, LR, RL) with height and balance factor ($BF = H_L - H_R$) tracking.
-- **Binary Heap Priority Queue:** Min-Heap and Max-Heap with dual synchronized tree and 1D array views ($2i+1, 2i+2$).
-- **B-Tree (Multi-Key):** Multi-key node insertion with proactive node splitting, searching, and deletion.
-- **Tree Traversals (PrO-11):** Preorder, Inorder, Postorder, and Level-Order traversals.
-- **BST vs AVL Evaluation:** Empirical demonstration showing how skewed inputs degrade BSTs to $O(N)$ while AVL maintains $O(\log N)$ bounds.
+### CO5 — Evaluate the applicability of graph data structures and traversal techniques for solving engineering problems
+- **Real-World Engineering Modeling:** Models computer networks as graphs where vertices represent routers and edges represent network links.
+- **Dual Synchronized Representations:** Maintains real-time synchronization between the Adjacency List $O(V + E)$ and the Adjacency Matrix $O(V^2)$.
+- **Network Reachability & Diagnostics:** Analyzes connected components, destination reachability from the active source, and simulated hardware failures (online/offline toggle).
+- **Real Packet Movement:** Animates packets along the actual discovered route hop-by-hop with playback controls (Play, Pause, Step, Reset, Speed).
 
-### Performance Dashboard & Academic Outcomes
-- **Empirical Benchmarks:** Live runtime measurements and operation counters across user-configured dataset sizes.
-- **Theoretical Complexity Reference:** Big-O references across best, average, and worst cases for time and space.
-- **Course Mapping:** Explicit mapping to Course Outcomes (CO3, CO4, CO5) and Practicums (PrO-7 through PrO-15).
+### Practicum Alignments
+- **PrO-13:** Represent graphs using adjacency lists and adjacency matrices.
+- **PrO-14:** Select a suitable graph representation for the problem ($O(V+E)$ list for sparse dynamic topologies vs. $O(V^2)$ matrix for constant-time edge queries).
+- **PrO-15:** Use graph structures to solve network connectivity, reachability, and packet routing problems.
 
 ---
 
-## 3. Project Architecture
+## 2. Features
 
-The application is structured into native Python modules with zero external pip dependencies:
+- **Interactive Topology Canvas:**
+  - Drag routers freely with live coordinate updates.
+  - Pan (middle/right-click drag) and Zoom (+/- buttons, mouse wheel, 1:1 Reset, Fit-to-View).
+  - Context menu on right-click to set Source, Destination, Toggle Power, or Delete.
+- **Dynamic Topology Editing:**
+  - Add router with ID/name validation and duplicate prevention.
+  - Delete selected router and cascade removal of associated edges.
+  - Connect routers with endpoint validation and duplicate link prevention.
+  - Remove existing connection.
+  - Toggle router online/offline power state.
+  - Save and load topologies via JSON files.
+- **Built-in Demonstration Topologies:**
+  1. *Default Sample Mesh:* Standard 6-router interconnected network.
+  2. *Direct Route:* Linear chain demonstrating baseline traversal.
+  3. *Multiple Possible Routes:* Diamond mesh highlighting the hop-count difference between BFS (shortest) and DFS (deep discovery).
+  4. *Cyclic Network:* Interconnected loops demonstrating visited-set cycle prevention.
+  5. *Disconnected Network:* Segmented subnets demonstrating destination unreachability and component analysis.
+  6. *Network with Offline Router:* Simulates equipment failure on a transit bridge.
+- **Playback & Animation Controls:**
+  - Play, Pause, Step-forward, Reset, and adjustable Speed slider.
+  - Real packet transmission traveling along the discovered path.
+- **Inspectors & Statistics:**
+  - Queue / Stack live inspector.
+  - Scrollable Adjacency List & Matrix with complexity documentation.
+  - Detailed Execution Trace Log with color-coded entries.
+  - Compact network statistics: Total $V$, Total $E$, Reachable Routers, Explored Edges, Visited Routers, Path Hops, and Connected Components.
+
+---
+
+## 3. Architecture & File Structure
+
+NetRoute uses standard Python 3 with zero external dependencies:
 
 ```
-NetRoute/
-├── main.py                 # Application launch entry point
-├── app.py                  # Main window shell, navigation, header, and lifecycle management
-├── network_ui.py           # Network simulator UI, canvas, topology editing, routing, packet animation
-├── labs_ui.py              # Searching, Sorting, Hashing, Benchmarks, and Learning Outcomes UI
-├── tree_ui.py              # Tree structures lab UI (BST, AVL, Heap, B-Tree)
-├── algorithms.py           # Core DSA implementations (search, sort, hash, trees, benchmark logic)
-├── network.py              # Graph model, router model, BFS/DFS routing, and topology validation
-├── theme.py                # Color palette, TTK styling, UI widgets, and simulation service
+Netroute/
+├── main.py                 # Application launcher
+├── app.py                  # Main window shell, academic header, status bar
+├── network_ui.py           # Network canvas, editing dialogs, playback, inspectors
+├── algorithms.py           # Genuine BFS and DFS routing implementations
+├── network.py              # Graph, Router models, presets, adjacency builders
+├── theme.py                # Color palette, TTK styles, reusable UI widgets
 ├── data/
-│   └── sample_network.json # Example 6-router network topology preset
-├── requirements.txt        # Standard library dependencies declaration
-└── README.md               # Project documentation and presentation guide
+│   └── sample_network.json # Example 6-router topology JSON
+├── requirements.txt        # Standard library declaration
+└── README.md               # Project documentation
 ```
 
 ---
 
 ## 4. How to Run
 
-Launch the application directly using standard Python 3:
+Ensure Python 3 is installed, then launch `main.py` directly:
 
 ```bash
 python3 main.py

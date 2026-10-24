@@ -1,42 +1,14 @@
-import json
-import time
+import math
 import random
 from collections import deque
-from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Optional, Any
-
-@dataclass
-class SimulationStep:
-    step_type: str
-    current_element: Optional[Any] = None
-    data_structure_state: Optional[List[Any]] = None
-    visited_elements: List[Any] = field(default_factory=list)
-    active_path: List[Any] = field(default_factory=list)
-    message: str = ""
-    highlight_indices: List[int] = field(default_factory=list)
-    secondary_indices: List[int] = field(default_factory=list)
-    extra_info: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass
-class SimulationResult:
-    algorithm_name: str
-    success: bool
-    path: List[Any] = field(default_factory=list)
-    visited_order: List[Any] = field(default_factory=list)
-    total_steps: int = 0
-    total_comparisons: int = 0
-    total_swaps: int = 0
-    execution_time_ms: float = 0.0
-    steps: List[SimulationStep] = field(default_factory=list)
-    message: str = ""
-    extra_info: Dict[str, Any] = field(default_factory=dict)
 
 class Router:
     def __init__(self, router_id: str, name: str, x: float, y: float, is_online: bool = True):
-        self.id = router_id
-        self.name = name
-        self.x = x
-        self.y = y
+        self.id = router_id.strip().upper()
+        self.name = name.strip() or f"Router {self.id}"
+        self.x = float(x)
+        self.y = float(y)
         self.is_online = is_online
 
     def to_dict(self) -> Dict[str, Any]:
@@ -52,9 +24,9 @@ class Router:
     def from_dict(cls, data: Dict[str, Any]) -> 'Router':
         return cls(
             router_id=data["id"],
-            name=data["name"],
-            x=data["x"],
-            y=data["y"],
+            name=data.get("name", ""),
+            x=data.get("x", 100.0),
+            y=data.get("y", 100.0),
             is_online=data.get("is_online", True)
         )
 
@@ -72,8 +44,7 @@ class Graph:
         rid = router_id.strip().upper()
         if not rid or rid in self.routers:
             return False
-        rname = name.strip() or f"Router {rid}"
-        self.routers[rid] = Router(rid, rname, x, y, is_online)
+        self.routers[rid] = Router(rid, name, x, y, is_online)
         self.adjacency[rid] = []
         return True
 
@@ -82,7 +53,8 @@ class Graph:
         if rid not in self.routers:
             return False
         del self.routers[rid]
-        del self.adjacency[rid]
+        if rid in self.adjacency:
+            del self.adjacency[rid]
         to_del = [e for e in self.edges if rid in e]
         for e in to_del:
             del self.edges[e]
@@ -95,6 +67,8 @@ class Graph:
         if u_id not in self.routers or v_id not in self.routers or u_id == v_id:
             return False
         key = self._edge_key(u_id, v_id)
+        if key in self.edges:
+            return False
         self.edges[key] = weight
         if not any(item[0] == v_id for item in self.adjacency[u_id]):
             self.adjacency[u_id].append((v_id, weight))
@@ -109,7 +83,8 @@ class Graph:
         if key not in self.edges:
             return False
         del self.edges[key]
-        self.adjacency[u_id] = [entry for entry in self.adjacency[u_id] if entry[0] != v_id]
+        if u_id in self.adjacency:
+            self.adjacency[u_id] = [entry for entry in self.adjacency[u_id] if entry[0] != v_id]
         if not self.directed and v_id in self.adjacency:
             self.adjacency[v_id] = [entry for entry in self.adjacency[v_id] if entry[0] != u_id]
         return True
@@ -124,54 +99,13 @@ class Graph:
     def set_router_position(self, router_id: str, x: float, y: float):
         rid = router_id.strip().upper()
         if rid in self.routers:
-            self.routers[rid].x = x
-            self.routers[rid].y = y
+            self.routers[rid].x = float(x)
+            self.routers[rid].y = float(y)
 
     def clear(self):
         self.routers.clear()
         self.edges.clear()
         self.adjacency.clear()
-
-    def load_sample_topology(self):
-        self.clear()
-        samples = [
-            ("R1", "Core Gateway R1", 120.0, 100.0),
-            ("R2", "Distribution R2", 300.0, 60.0),
-            ("R3", "Edge Switch R3", 480.0, 100.0),
-            ("R4", "Branch Router R4", 180.0, 240.0),
-            ("R5", "Data Center R5", 360.0, 250.0),
-            ("R6", "Border Gateway R6", 520.0, 240.0)
-        ]
-        for rid, name, x, y in samples:
-            self.add_router(rid, name, x, y)
-        links = [
-            ("R1", "R2", 1.0),
-            ("R1", "R4", 1.0),
-            ("R2", "R3", 1.0),
-            ("R2", "R5", 1.0),
-            ("R3", "R6", 1.0),
-            ("R4", "R5", 1.0),
-            ("R5", "R6", 1.0)
-        ]
-        for u, v, w in links:
-            self.add_edge(u, v, w)
-
-    def generate_random(self, num_routers: int = 6):
-        self.clear()
-        names = [f"R{i+1}" for i in range(num_routers)]
-        center_x, center_y = 320.0, 180.0
-        import math
-        angle_step = (2 * math.pi) / num_routers
-        for i, name in enumerate(names):
-            x = center_x + 180.0 * math.cos(i * angle_step)
-            y = center_y + 110.0 * math.sin(i * angle_step)
-            self.add_router(name, f"Router {name}", round(x, 1), round(y, 1))
-        for i in range(num_routers):
-            self.add_edge(names[i], names[(i + 1) % num_routers], 1.0)
-        for _ in range(num_routers // 2):
-            u, v = random.sample(names, 2)
-            if u != v:
-                self.add_edge(u, v, 1.0)
 
     def get_adjacency_list(self) -> Dict[str, List[str]]:
         res = {}
@@ -206,7 +140,7 @@ class Graph:
             while q:
                 curr = q.popleft()
                 for neighbor, _ in self.adjacency.get(curr, []):
-                    if self.routers.get(neighbor) and self.routers[neighbor].is_online:
+                    if neighbor in self.routers and self.routers[neighbor].is_online:
                         if neighbor not in visited:
                             visited.add(neighbor)
                             comp.add(neighbor)
@@ -215,11 +149,182 @@ class Graph:
         return components
 
     def is_connected(self) -> bool:
-        online_count = sum(1 for r in self.routers.values() if r.is_online)
-        if online_count <= 1:
+        online_routers = [r for r in self.routers.values() if r.is_online]
+        if len(online_routers) <= 1:
             return True
-        components = self.get_connected_components()
-        return len(components) == 1
+        comps = self.get_connected_components()
+        return len(comps) == 1 and len(comps[0]) == len(online_routers)
+
+    def get_reachable_routers(self, start_id: str) -> Set[str]:
+        sid = start_id.strip().upper()
+        if sid not in self.routers or not self.routers[sid].is_online:
+            return set()
+        visited = {sid}
+        q = deque([sid])
+        while q:
+            curr = q.popleft()
+            for neighbor, _ in self.adjacency.get(curr, []):
+                if neighbor in self.routers and self.routers[neighbor].is_online:
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        q.append(neighbor)
+        return visited
+
+    def load_preset(self, preset_type: str):
+        self.clear()
+        ptype = preset_type.lower()
+        if ptype == "direct":
+            nodes = [
+                ("R1", "Source Router", 120.0, 180.0),
+                ("R2", "Transit Router 1", 260.0, 180.0),
+                ("R3", "Transit Router 2", 400.0, 180.0),
+                ("R4", "Destination Gateway", 540.0, 180.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name, x, y)
+            links = [("R1", "R2"), ("R2", "R3"), ("R3", "R4")]
+            for u, v in links:
+                self.add_edge(u, v)
+
+        elif ptype == "multi_route":
+            nodes = [
+                ("R1", "Source Gateway R1", 100.0, 180.0),
+                ("R2", "Upper Spine R2", 260.0, 90.0),
+                ("R3", "Upper Leaf R3", 420.0, 90.0),
+                ("R4", "Lower Spine R4", 220.0, 270.0),
+                ("R5", "Lower Transit R5", 340.0, 270.0),
+                ("R6", "Lower Leaf R6", 460.0, 270.0),
+                ("R7", "Destination Router R7", 580.0, 180.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name, x, y)
+            links = [
+                ("R1", "R2"), ("R2", "R3"), ("R3", "R7"),
+                ("R1", "R4"), ("R4", "R5"), ("R5", "R6"), ("R6", "R7")
+            ]
+            for u, v in links:
+                self.add_edge(u, v)
+
+        elif ptype == "cyclic":
+            nodes = [
+                ("R1", "Gateway R1", 140.0, 130.0),
+                ("R2", "Core Node R2", 300.0, 80.0),
+                ("R3", "Border Node R3", 460.0, 130.0),
+                ("R4", "Switch R4", 460.0, 250.0),
+                ("R5", "Distributor R5", 300.0, 300.0),
+                ("R6", "Access Node R6", 140.0, 250.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name, x, y)
+            links = [
+                ("R1", "R2"), ("R2", "R3"), ("R3", "R4"),
+                ("R4", "R5"), ("R5", "R6"), ("R6", "R1"),
+                ("R2", "R5"), ("R2", "R4"), ("R1", "R5")
+            ]
+            for u, v in links:
+                self.add_edge(u, v)
+
+        elif ptype == "disconnected":
+            nodes = [
+                ("R1", "Subnet-A Router 1", 120.0, 120.0),
+                ("R2", "Subnet-A Router 2", 240.0, 90.0),
+                ("R3", "Subnet-A Router 3", 200.0, 240.0),
+                ("R4", "Subnet-B Router 4", 440.0, 120.0),
+                ("R5", "Subnet-B Router 5", 560.0, 90.0),
+                ("R6", "Subnet-B Router 6", 500.0, 240.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name, x, y)
+            links = [
+                ("R1", "R2"), ("R2", "R3"), ("R1", "R3"),
+                ("R4", "R5"), ("R5", "R6"), ("R4", "R6")
+            ]
+            for u, v in links:
+                self.add_edge(u, v)
+
+        elif ptype == "offline_router":
+            nodes = [
+                ("R1", "Source R1", 120.0, 180.0),
+                ("R2", "Bridge R2 (OFFLINE)", 280.0, 120.0),
+                ("R3", "Core Switch R3", 440.0, 180.0),
+                ("R4", "Bypass Router R4", 280.0, 250.0),
+                ("R5", "Destination R5", 560.0, 180.0)
+            ]
+            for rid, name, x, y in nodes:
+                is_on = (rid != "R2")
+                self.add_router(rid, name, x, y, is_online=is_on)
+            links = [
+                ("R1", "R2"), ("R2", "R3"),
+                ("R1", "R4"), ("R4", "R3"),
+                ("R3", "R5")
+            ]
+            for u, v in links:
+                self.add_edge(u, v)
+
+        else:
+            samples = [
+                ("R1", "Core Gateway R1", 120.0, 110.0),
+                ("R2", "Distribution R2", 300.0, 70.0),
+                ("R3", "Edge Switch R3", 480.0, 110.0),
+                ("R4", "Branch Router R4", 170.0, 250.0),
+                ("R5", "Data Center R5", 350.0, 260.0),
+                ("R6", "Border Gateway R6", 520.0, 250.0)
+            ]
+            for rid, name, x, y in samples:
+                self.add_router(rid, name, x, y)
+            links = [
+                ("R1", "R2"), ("R1", "R4"),
+                ("R2", "R3"), ("R2", "R5"),
+                ("R3", "R6"), ("R4", "R5"),
+                ("R5", "R6")
+            ]
+            for u, v in links:
+                self.add_edge(u, v)
+
+    def generate_connected(self, num_routers: int = 6):
+        self.clear()
+        names = [f"R{i+1}" for i in range(num_routers)]
+        cx, cy = 330.0, 180.0
+        angle_step = (2 * math.pi) / num_routers
+        for i, name in enumerate(names):
+            x = cx + 180.0 * math.cos(i * angle_step)
+            y = cy + 110.0 * math.sin(i * angle_step)
+            self.add_router(name, f"Router {name}", round(x, 1), round(y, 1))
+
+        for i in range(num_routers - 1):
+            self.add_edge(names[i], names[i + 1])
+        if num_routers > 2:
+            self.add_edge(names[num_routers - 1], names[0])
+            for _ in range(num_routers // 2):
+                u, v = random.sample(names, 2)
+                self.add_edge(u, v)
+
+    def generate_disconnected(self, num_routers: int = 6):
+        self.clear()
+        names = [f"R{i+1}" for i in range(num_routers)]
+        half = max(2, num_routers // 2)
+        group1 = names[:half]
+        group2 = names[half:]
+
+        for i, name in enumerate(group1):
+            x = 120.0 + (i % 2) * 110.0
+            y = 100.0 + (i // 2) * 120.0
+            self.add_router(name, f"Subnet-A {name}", x, y)
+
+        for i, name in enumerate(group2):
+            x = 420.0 + (i % 2) * 110.0
+            y = 100.0 + (i // 2) * 120.0
+            self.add_router(name, f"Subnet-B {name}", x, y)
+
+        for i in range(len(group1) - 1):
+            self.add_edge(group1[i], group1[i + 1])
+        if len(group1) > 2:
+            self.add_edge(group1[-1], group1[0])
+
+        for i in range(len(group2) - 1):
+            self.add_edge(group2[i], group2[i + 1])
+        if len(group2) > 2:
+            self.add_edge(group2[-1], group2[0])
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -239,285 +344,6 @@ class Graph:
                 u, v = item[0], item[1]
                 w = float(item[2]) if len(item) > 2 else 1.0
                 self.add_edge(u, v, w)
-
-def bfs_path(graph: Graph, start_id: str, end_id: str) -> SimulationResult:
-    start_time = time.perf_counter()
-    steps: List[SimulationStep] = []
-    start_id = start_id.strip().upper()
-    end_id = end_id.strip().upper()
-
-    if start_id not in graph.routers or end_id not in graph.routers:
-        return SimulationResult(
-            algorithm_name="BFS Routing",
-            success=False,
-            message="Invalid start or destination router."
-        )
-
-    if not graph.routers[start_id].is_online:
-        return SimulationResult(
-            algorithm_name="BFS Routing",
-            success=False,
-            message=f"Source router {start_id} is offline."
-        )
-
-    if not graph.routers[end_id].is_online:
-        return SimulationResult(
-            algorithm_name="BFS Routing",
-            success=False,
-            message=f"Destination router {end_id} is offline."
-        )
-
-    queue = deque([start_id])
-    visited: Set[str] = {start_id}
-    parent: Dict[str, Optional[str]] = {start_id: None}
-    dist: Dict[str, int] = {start_id: 0}
-    visited_order: List[str] = []
-    step_details: List[Dict[str, Any]] = []
-
-    steps.append(SimulationStep(
-        step_type="enqueue",
-        current_element=start_id,
-        data_structure_state=list(queue),
-        visited_elements=[],
-        message=f"Source router '{start_id}' enqueued into BFS FIFO Queue (Level 0).",
-        extra_info={"visited_order": [], "dist": dict(dist)}
-    ))
-
-    found = False
-    comparisons = 0
-
-    while queue:
-        curr = queue.popleft()
-        visited_order.append(curr)
-        curr_dist = dist.get(curr, 0)
-
-        step_details.append({
-            "order": len(visited_order),
-            "router": curr,
-            "action": "Source Initialized" if curr == start_id else ("Target Reached" if curr == end_id else "Dequeued & Visited"),
-            "level": curr_dist,
-            "role": "Source" if curr == start_id else ("Destination" if curr == end_id else "Router")
-        })
-
-        steps.append(SimulationStep(
-            step_type="dequeue",
-            current_element=curr,
-            data_structure_state=list(queue),
-            visited_elements=list(visited_order),
-            message=f"Visited #{len(visited_order)}: Dequeued '{curr}' (Hop {curr_dist}). Exploring unvisited neighbors.",
-            extra_info={"visited_order": list(visited_order), "dist": dict(dist)}
-        ))
-
-        comparisons += 1
-        if curr == end_id:
-            found = True
-            break
-
-        neighbors = [entry[0] for entry in graph.adjacency.get(curr, [])]
-        for neighbor in sorted(neighbors):
-            if neighbor not in graph.routers or not graph.routers[neighbor].is_online:
-                continue
-
-            comparisons += 1
-            if neighbor not in visited:
-                visited.add(neighbor)
-                parent[neighbor] = curr
-                dist[neighbor] = curr_dist + 1
-                queue.append(neighbor)
-
-                steps.append(SimulationStep(
-                    step_type="enqueue",
-                    current_element=neighbor,
-                    data_structure_state=list(queue),
-                    visited_elements=list(visited_order),
-                    active_path=[curr, neighbor],
-                    message=f"Discovered '{neighbor}' at Hop {curr_dist + 1} via link ({curr} -> {neighbor}). Enqueued.",
-                    extra_info={"visited_order": list(visited_order), "dist": dict(dist)}
-                ))
-
-    elapsed = (time.perf_counter() - start_time) * 1000.0
-
-    if not found:
-        return SimulationResult(
-            algorithm_name="BFS Routing",
-            success=False,
-            visited_order=visited_order,
-            total_steps=len(steps),
-            total_comparisons=comparisons,
-            execution_time_ms=elapsed,
-            steps=steps,
-            message=f"No route found between {start_id} and {end_id} (Network disconnected or offline).",
-            extra_info={"traversal_order": list(visited_order), "dist": dist, "step_details": step_details}
-        )
-
-    path = []
-    curr_back = end_id
-    while curr_back is not None:
-        path.append(curr_back)
-        curr_back = parent.get(curr_back)
-    path.reverse()
-
-    steps.append(SimulationStep(
-        step_type="complete",
-        current_element=end_id,
-        data_structure_state=[],
-        visited_elements=visited_order,
-        active_path=path,
-        message=f"BFS discovered shortest-hop route: {' -> '.join(path)} ({len(path)-1} hops). Traversal Sequence: {' -> '.join(visited_order)}.",
-        extra_info={"visited_order": list(visited_order), "dist": dict(dist)}
-    ))
-
-    return SimulationResult(
-        algorithm_name="BFS Routing",
-        success=True,
-        path=path,
-        visited_order=visited_order,
-        total_steps=len(steps),
-        total_comparisons=comparisons,
-        execution_time_ms=elapsed,
-        steps=steps,
-        message=f"Shortest path discovered: {' -> '.join(path)} ({len(path)-1} hops).",
-        extra_info={"traversal_order": list(visited_order), "dist": dist, "step_details": step_details}
-    )
-
-def dfs_path(graph: Graph, start_id: str, end_id: str) -> SimulationResult:
-    start_time = time.perf_counter()
-    steps: List[SimulationStep] = []
-    start_id = start_id.strip().upper()
-    end_id = end_id.strip().upper()
-
-    if start_id not in graph.routers or end_id not in graph.routers:
-        return SimulationResult(
-            algorithm_name="DFS Routing",
-            success=False,
-            message="Invalid start or destination router."
-        )
-
-    if not graph.routers[start_id].is_online:
-        return SimulationResult(
-            algorithm_name="DFS Routing",
-            success=False,
-            message=f"Source router {start_id} is offline."
-        )
-
-    if not graph.routers[end_id].is_online:
-        return SimulationResult(
-            algorithm_name="DFS Routing",
-            success=False,
-            message=f"Destination router {end_id} is offline."
-        )
-
-    stack: List[Tuple[str, List[str]]] = [(start_id, [start_id])]
-    visited: Set[str] = set()
-    visited_order: List[str] = []
-    depth_map: Dict[str, int] = {start_id: 0}
-    step_details: List[Dict[str, Any]] = []
-
-    steps.append(SimulationStep(
-        step_type="push",
-        current_element=start_id,
-        data_structure_state=[s[0] for s in stack],
-        visited_elements=[],
-        message=f"Source router '{start_id}' pushed onto DFS LIFO Stack.",
-        extra_info={"visited_order": [], "dist": dict(depth_map)}
-    ))
-
-    found = False
-    final_path: List[str] = []
-    comparisons = 0
-
-    while stack:
-        curr, path = stack.pop()
-
-        if curr in visited:
-            continue
-
-        visited.add(curr)
-        visited_order.append(curr)
-        depth = len(path) - 1
-        depth_map[curr] = depth
-
-        step_details.append({
-            "order": len(visited_order),
-            "router": curr,
-            "action": "Source Initialized" if curr == start_id else ("Target Reached" if curr == end_id else "Popped & Visited"),
-            "level": depth,
-            "role": "Source" if curr == start_id else ("Destination" if curr == end_id else "Router")
-        })
-
-        steps.append(SimulationStep(
-            step_type="pop",
-            current_element=curr,
-            data_structure_state=[s[0] for s in stack],
-            visited_elements=list(visited_order),
-            active_path=list(path),
-            message=f"Visited #{len(visited_order)}: Popped '{curr}' (Depth {depth}). Exploring deepest unvisited branch.",
-            extra_info={"visited_order": list(visited_order), "dist": dict(depth_map)}
-        ))
-
-        comparisons += 1
-        if curr == end_id:
-            found = True
-            final_path = path
-            break
-
-        neighbors = [entry[0] for entry in graph.adjacency.get(curr, [])]
-        for neighbor in sorted(neighbors, reverse=True):
-            if neighbor not in graph.routers or not graph.routers[neighbor].is_online:
-                continue
-
-            comparisons += 1
-            if neighbor not in visited:
-                depth_map[neighbor] = depth + 1
-                stack.append((neighbor, path + [neighbor]))
-
-                steps.append(SimulationStep(
-                    step_type="push",
-                    current_element=neighbor,
-                    data_structure_state=[s[0] for s in stack],
-                    visited_elements=list(visited_order),
-                    active_path=[curr, neighbor],
-                    message=f"Pushed unvisited neighbor '{neighbor}' onto DFS Stack.",
-                    extra_info={"visited_order": list(visited_order), "dist": dict(depth_map)}
-                ))
-
-    elapsed = (time.perf_counter() - start_time) * 1000.0
-
-    if not found:
-        return SimulationResult(
-            algorithm_name="DFS Routing",
-            success=False,
-            visited_order=visited_order,
-            total_steps=len(steps),
-            total_comparisons=comparisons,
-            execution_time_ms=elapsed,
-            steps=steps,
-            message=f"No route found between {start_id} and {end_id} using DFS.",
-            extra_info={"traversal_order": list(visited_order), "dist": depth_map, "step_details": step_details}
-        )
-
-    steps.append(SimulationStep(
-        step_type="complete",
-        current_element=end_id,
-        data_structure_state=[],
-        visited_elements=visited_order,
-        active_path=final_path,
-        message=f"DFS discovered valid path: {' -> '.join(final_path)} ({len(final_path)-1} hops). Traversal Sequence: {' -> '.join(visited_order)}.",
-        extra_info={"visited_order": list(visited_order), "dist": dict(depth_map)}
-    ))
-
-    return SimulationResult(
-        algorithm_name="DFS Routing",
-        success=True,
-        path=final_path,
-        visited_order=visited_order,
-        total_steps=len(steps),
-        total_comparisons=comparisons,
-        execution_time_ms=elapsed,
-        steps=steps,
-        message=f"Path discovered: {' -> '.join(final_path)} ({len(final_path)-1} hops).",
-        extra_info={"traversal_order": list(visited_order), "dist": depth_map, "step_details": step_details}
-    )
 
 def validate_router_id(router_id: str) -> Tuple[bool, str]:
     rid = router_id.strip().upper()
