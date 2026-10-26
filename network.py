@@ -3,8 +3,9 @@ import random
 from collections import deque
 from typing import Dict, List, Set, Tuple, Optional, Any
 
+
 class Router:
-    def __init__(self, router_id: str, name: str, x: float, y: float, is_online: bool = True):
+    def __init__(self, router_id: str, name: str = "", x: float = 100.0, y: float = 100.0, is_online: bool = True):
         self.id = router_id.strip().upper()
         self.name = name.strip() or f"Router {self.id}"
         self.x = float(x)
@@ -21,7 +22,7 @@ class Router:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Router':
+    def from_dict(cls, data: Dict[str, Any]) -> "Router":
         return cls(
             router_id=data["id"],
             name=data.get("name", ""),
@@ -29,6 +30,7 @@ class Router:
             y=data.get("y", 100.0),
             is_online=data.get("is_online", True)
         )
+
 
 class Graph:
     def __init__(self, directed: bool = False):
@@ -61,6 +63,13 @@ class Graph:
         for k in self.adjacency:
             self.adjacency[k] = [entry for entry in self.adjacency[k] if entry[0] != rid]
         return True
+
+    def rename_router(self, router_id: str, new_name: str) -> bool:
+        rid = router_id.strip().upper()
+        if rid in self.routers and new_name.strip():
+            self.routers[rid].name = new_name.strip()
+            return True
+        return False
 
     def add_edge(self, u: str, v: str, weight: float = 1.0) -> bool:
         u_id, v_id = u.strip().upper(), v.strip().upper()
@@ -101,6 +110,18 @@ class Graph:
         if rid in self.routers:
             self.routers[rid].x = float(x)
             self.routers[rid].y = float(y)
+
+    def auto_layout(self):
+        nodes = sorted(self.routers.keys())
+        n = len(nodes)
+        if n == 0:
+            return
+        cx, cy = 300.0, 200.0
+        radius = min(220.0, max(80.0, 30.0 * n))
+        for i, rid in enumerate(nodes):
+            angle = (2 * math.pi * i) / n - (math.pi / 2)
+            self.routers[rid].x = round(cx + radius * math.cos(angle), 1)
+            self.routers[rid].y = round(cy + radius * math.sin(angle), 1)
 
     def clear(self):
         self.routers.clear()
@@ -182,8 +203,7 @@ class Graph:
             ]
             for rid, name, x, y in nodes:
                 self.add_router(rid, name, x, y)
-            links = [("R1", "R2"), ("R2", "R3"), ("R3", "R4")]
-            for u, v in links:
+            for u, v in [("R1", "R2"), ("R2", "R3"), ("R3", "R4")]:
                 self.add_edge(u, v)
 
         elif ptype == "multi_route":
@@ -251,8 +271,7 @@ class Graph:
                 ("R5", "Destination R5", 560.0, 180.0)
             ]
             for rid, name, x, y in nodes:
-                is_on = (rid != "R2")
-                self.add_router(rid, name, x, y, is_online=is_on)
+                self.add_router(rid, name, x, y, is_online=(rid != "R2"))
             links = [
                 ("R1", "R2"), ("R2", "R3"),
                 ("R1", "R4"), ("R4", "R3"),
@@ -344,6 +363,7 @@ class Graph:
                 u, v = item[0], item[1]
                 w = float(item[2]) if len(item) > 2 else 1.0
                 self.add_edge(u, v, w)
+
 
 def validate_router_id(router_id: str) -> Tuple[bool, str]:
     rid = router_id.strip().upper()

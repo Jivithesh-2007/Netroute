@@ -1,3 +1,3 @@
-# NetRoute Desktop Simulator Requirements
-# Built entirely using standard Python library (tkinter, ttk, json, time, math, random, unittest).
-# No external third-party dependencies or cloud APIs required.
+streamlit>=1.30.0
+plotly>=5.18.0
+pandas>=2.0.0

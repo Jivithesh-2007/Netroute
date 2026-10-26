@@ -523,6 +523,7 @@ class NetworkSimulatorView(ttk.Frame):
         txt_container.pack(fill="both", expand=True)
 
         self.txt_adj_list = tk.Text(
+            
             txt_container,
             font=Theme.FONT_MONO,
             height=12,
