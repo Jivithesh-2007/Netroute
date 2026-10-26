@@ -26,18 +26,25 @@ NetRoute aligns directly with **CO1**, **CO2**, and **CO5** of the Data Structur
 
 ---
 
-## 2. Minimal Project Structure
+## 2. Project Structure
 
 ```
 NetRoute/
-├── main.py              # Streamlit page configuration, UI layout, Plotly graph, and inspectors
+├── main.py              # Streamlit page layout, Plotly graph visualizer, metrics, and inspector tabs
 ├── network.py           # Router and Graph models, dynamic editing, presets, and validation
 ├── algorithms.py        # Genuine BFS and DFS engines with granular step-by-step state recording
 ├── simulation.py        # Session state management, playback progression, and packet animation
 ├── theme.py             # Curated light palette, CSS styling, and badge/metric renderers
 ├── requirements.txt     # Minimal dependencies (streamlit, plotly, pandas)
 ├── .gitignore           # Git ignore patterns
-└── README.md            # Comprehensive project documentation
+├── README.md            # Comprehensive project documentation
+├── data/
+│   └── sample_network.json  # Sample 6-router topology JSON
+└── tests/
+    ├── test_network.py  # Graph operations, validation, matrix/list sync tests
+    ├── test_bfs.py      # BFS shortest path, queue mechanics, edge cases
+    ├── test_dfs.py      # DFS path discovery, stack mechanics, backtracking
+    └── test_simulation.py # Step navigation, packet hop progression, state reset
 ```
 
 ---
@@ -63,7 +70,7 @@ NetRoute/
 4. **Cyclic Network:** Multi-loop mesh demonstrating visited-set loop avoidance.
 5. **Disconnected Subnets:** Segmented network demonstrating partition detection and reachability failure.
 6. **Offline Router Barrier:** Network with a disabled bridge router demonstrating dynamic detour routing.
-7. **Random Generators:** Generates connected or disconnected random networks ($3 \le V \le 12$).
+7. **Random Generators:** Generates connected or disconnected random networks ($3 \le V \le 10$).
 
 ---
 
@@ -82,3 +89,9 @@ pip install -r requirements.txt
 streamlit run main.py
 ```
 Open your browser at `http://localhost:8501`.
+
+### Run Automated Tests
+```bash
+python3 -m unittest discover -s tests -p "test_*.py"
+```
+All 21 unit tests verify graph operations, BFS, DFS, and simulation state.
