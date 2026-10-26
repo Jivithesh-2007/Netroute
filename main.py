@@ -30,8 +30,7 @@ import simulation as sim
 # 1. PAGE SETUP & THEME CONFIGURATION
 # -------------------------------------------------------------
 st.set_page_config(
-    page_title="NetRoute — Network Packet-Routing Simulator",
-    page_icon="🌐",
+    page_title="NetRoute - Network Packet-Routing Simulator",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -165,7 +164,7 @@ def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_
         node_colors.append(fill_c)
         border_colors.append(border_c)
 
-        status_str = "🟢 Online" if r.is_online else "🔴 Offline"
+        status_str = "Online" if r.is_online else "Offline"
         nbrs = sorted(graph.adjacency.get(rid, []))
         nbr_str = ", ".join(nbrs) if nbrs else "None"
         ht = (
@@ -190,16 +189,17 @@ def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_
         hoverinfo="text", hovertext=hover_texts, name="Routers", showlegend=False
     ))
 
-    # F. Draw Current Packet Marker (When packet animation is active)
+    # F. Draw Current Packet Marker (Zero emojis)
     if packet_node and packet_node in graph.routers:
         pr = graph.routers[packet_node]
         fig.add_trace(go.Scatter(
             x=[pr.x], y=[pr.y],
             mode="markers+text",
             marker=dict(size=46, symbol="circle-open", color=COLOR_PACKET, line=dict(color=COLOR_PACKET, width=3.5)),
-            text=["📦"], textposition="top center", textfont=dict(size=18),
+            text=["PACKET"], textposition="top center",
+            textfont=dict(size=10, color=COLOR_PACKET, family="-apple-system, sans-serif"),
             hoverinfo="text", hovertext=f"<b>Packet In-Transit</b><br>Currently at Router {packet_node}",
-            name="Packet (📦)", showlegend=True
+            name="Packet", showlegend=True
         ))
 
     # Set boundaries with padding
@@ -221,7 +221,7 @@ def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_
 
 
 # -------------------------------------------------------------
-# 3. COMPACT TOP HEADER BAR
+# 3. COMPACT TOP HEADER BAR (ZERO EMOJIS)
 # -------------------------------------------------------------
 sim_status = sim.get_simulation_status()
 status_class = {
@@ -237,10 +237,10 @@ with h_col1:
     st.markdown(
         f"""
         <div style="display:flex; align-items:center; gap:10px;">
-            <h2 style="margin:0; font-size:1.6rem; font-weight:800; color:{PRIMARY};">🌐 NetRoute</h2>
-            <span style="color:{BORDER};">•</span>
+            <h2 style="margin:0; font-size:1.6rem; font-weight:800; color:{PRIMARY};">NetRoute</h2>
+            <span style="color:{BORDER};">|</span>
             <span style="font-size:0.95rem; font-weight:600; color:{TEXT_MUTED};">Network Packet-Routing Simulator</span>
-            <span class="badge-pill {status_class}" style="margin-left:6px;">● {sim_status.upper()}</span>
+            <span class="badge-pill {status_class}" style="margin-left:6px;">[{sim_status.upper()}]</span>
         </div>
         """,
         unsafe_allow_html=True
@@ -260,14 +260,14 @@ with h_col2:
 st.write("")
 
 # -------------------------------------------------------------
-# 4. TOP-LEVEL SAAS WORKSPACE NAVIGATION
+# 4. TOP-LEVEL SAAS WORKSPACE NAVIGATION (ZERO EMOJIS)
 # -------------------------------------------------------------
 nav_sim, nav_topo, nav_compare, nav_explorer, nav_learn = st.tabs([
-    "🚀 Live Simulator",
-    "🛠️ Topology Editor",
-    "⚖️ Algorithm Comparison",
-    "📊 Graph Explorer",
-    "📚 Learning Centre"
+    "Live Simulator",
+    "Topology Editor",
+    "Algorithm Comparison",
+    "Graph Explorer",
+    "Learning Centre"
 ])
 
 
@@ -305,7 +305,7 @@ with nav_sim:
             sim.invalidate_simulation()
 
     with ctrl_col4:
-        if st.button("🚀 Run Simulation", type="primary", width="stretch"):
+        if st.button("Run Simulation", type="primary", width="stretch"):
             sim.execute_routing(graph, algo_choice, src_sel, dst_sel)
 
     with ctrl_col5:
@@ -326,7 +326,7 @@ with nav_sim:
     online_v = sum(1 for r in graph.routers.values() if r.is_online)
     total_e = len(graph.get_edges())
     visited_v = len(active_state.get("visited_nodes", []))
-    route_hops_str = f"{sim_res['hops']} hops" if (sim_res and sim_res.get("success")) else "—"
+    route_hops_str = f"{sim_res['hops']} hops" if (sim_res and sim_res.get("success")) else "None"
     steps_total = len(sim_res.get("steps", [])) if (sim_res and sim_res.get("steps")) else 0
     curr_step_idx = st.session_state.get("step_idx", 0)
 
@@ -341,7 +341,7 @@ with nav_sim:
     with m4:
         st.markdown(render_metric_card("Route Hops", route_hops_str, "Shortest" if (sim_res and "BFS" in sim_res.get("algorithm", "")) else "Discovered", SUCCESS if (sim_res and sim_res.get("success")) else TEXT_MUTED), unsafe_allow_html=True)
     with m5:
-        max_str = str(sim_res.get("max_structure", "—")) if sim_res else "—"
+        max_str = str(sim_res.get("max_structure", "None")) if sim_res else "None"
         st.markdown(render_metric_card("Max Struct", max_str, "Queue / Stack peak", PURPLE), unsafe_allow_html=True)
     with m6:
         progress_str = f"Step {curr_step_idx + 1} / {steps_total}" if steps_total else "Ready"
@@ -353,28 +353,28 @@ with nav_sim:
     fig = build_network_figure(graph, active_state, st.session_state["source_id"], st.session_state["dest_id"])
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": True, "scrollZoom": True})
 
-    # Playback Toolbar (Below Graph)
+    # Playback Toolbar (Below Graph, Zero Emojis, Clear Contrast)
     if sim_res and sim_res.get("steps"):
         pb_col1, pb_col2, pb_col3, pb_col4, pb_col5, pb_col6, pb_col7 = st.columns([1, 1, 1.4, 1, 1, 1, 3.5])
         with pb_col1:
-            if st.button("⏮ First", width="stretch", disabled=(curr_step_idx == 0)):
+            if st.button("First", width="stretch", disabled=(curr_step_idx == 0)):
                 sim.first_step()
         with pb_col2:
-            if st.button("◀ Back", width="stretch", disabled=(curr_step_idx == 0)):
+            if st.button("Back", width="stretch", disabled=(curr_step_idx == 0)):
                 sim.step_backward()
         with pb_col3:
-            play_label = "⏸ Pause" if st.session_state.get("is_playing", False) else "▶ Play"
+            play_label = "Pause" if st.session_state.get("is_playing", False) else "Play"
             if st.button(play_label, width="stretch", type="primary" if not st.session_state.get("is_playing") else "secondary"):
                 sim.toggle_playback()
                 st.rerun()
         with pb_col4:
-            if st.button("Next ▶", width="stretch", disabled=(curr_step_idx == steps_total - 1)):
+            if st.button("Next", width="stretch", disabled=(curr_step_idx == steps_total - 1)):
                 sim.step_forward()
         with pb_col5:
-            if st.button("End ⏭", width="stretch", disabled=(curr_step_idx == steps_total - 1)):
+            if st.button("End", width="stretch", disabled=(curr_step_idx == steps_total - 1)):
                 sim.last_step()
         with pb_col6:
-            if st.button("↺ Reset", width="stretch"):
+            if st.button("Reset", width="stretch"):
                 sim.reset_simulation()
                 st.rerun()
         with pb_col7:
@@ -391,7 +391,7 @@ with nav_sim:
 
     # Left Column: Step & Operation Banner
     with bot_c1:
-        st.markdown("##### 📌 Current Step & Operation")
+        st.markdown("##### Current Step & Operation")
         if current_step:
             st.info(f"**Step {current_step['step']} [{current_step['operation']}]:** {current_step['description']}")
             if current_step.get("active_edge"):
@@ -399,7 +399,7 @@ with nav_sim:
                 st.caption(f"Active Link Traversed: **{u} <-> {v}**")
         elif sim_res:
             if sim_res.get("success"):
-                st.success(f"**Discovered Route:** {' ➔ '.join(sim_res['path'])} ({sim_res['hops']} hops)")
+                st.success(f"**Discovered Route:** {' -> '.join(sim_res['path'])} ({sim_res['hops']} hops)")
             else:
                 st.error(sim_res.get("message"))
         else:
@@ -409,11 +409,11 @@ with nav_sim:
     with bot_c2:
         is_bfs = "BFS" in st.session_state.get("selected_algo", "")
         struct_name = "FIFO Queue" if is_bfs else "LIFO Stack"
-        st.markdown(f"##### 🔍 Live {struct_name} (CO1)")
+        st.markdown(f"##### Live {struct_name} (CO1)")
 
         if current_step:
             items = current_step.get("structure", [])
-            st.caption(f"Current Size: **{len(items)}** • Max Size: **{sim_res.get('max_structure', 0)}**")
+            st.caption(f"Current Size: **{len(items)}** | Max Size: **{sim_res.get('max_structure', 0)}**")
 
             if not items:
                 st.caption(f"*{struct_name} is currently empty.*")
@@ -429,7 +429,7 @@ with nav_sim:
                             chips_html.append(f'<span class="chip chip-rear">REAR: {it}</span>')
                         else:
                             chips_html.append(f'<span class="chip chip-item">{it}</span>')
-                    st.markdown(f'<div>{" ➔ ".join(chips_html)}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div>{" -> ".join(chips_html)}</div>', unsafe_allow_html=True)
                 else:
                     for i, it in enumerate(items):
                         if i == len(items) - 1 and len(items) == 1:
@@ -440,38 +440,37 @@ with nav_sim:
                             chips_html.append(f'<span class="chip chip-bot">BOTTOM: {it}</span>')
                         else:
                             chips_html.append(f'<span class="chip chip-item">{it}</span>')
-                    st.markdown(f'<div>{" ➔ ".join(chips_html)}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div>{" -> ".join(chips_html)}</div>', unsafe_allow_html=True)
 
             # Visited Sequence
             visited_list = current_step.get("visited", [])
             if visited_list:
                 v_chips = [f'<span class="chip chip-visited">{n}</span>' for n in visited_list]
-                st.markdown(f'<div style="margin-top:6px;"><b>Visited:</b> {" ➔ ".join(v_chips)}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="margin-top:6px;"><b>Visited Order:</b> {" -> ".join(v_chips)}</div>', unsafe_allow_html=True)
         else:
-            st.caption(f"Waiting for simulation run...")
+            st.caption("Waiting for simulation run...")
 
     # Right Column: Packet Transmission Animation
     with bot_c3:
-        st.markdown("##### 📦 Packet Transmission (CO5)")
+        st.markdown("##### Packet Transmission (CO5)")
         if sim_res and sim_res.get("success") and sim_res.get("path"):
             path = sim_res["path"]
             p_hop = st.session_state.get("packet_hop", 0)
 
             pkt_btn1, pkt_btn2, pkt_btn3 = st.columns(3)
             with pkt_btn1:
-                if st.button("Hop ➡️", width="stretch", disabled=(p_hop >= len(path) - 1)):
+                if st.button("Step Hop", width="stretch", disabled=(p_hop >= len(path) - 1)):
                     sim.packet_step_forward()
             with pkt_btn2:
-                stream_label = "⏸ Pause" if st.session_state.get("packet_auto") else "Stream 📦"
+                stream_label = "Pause" if st.session_state.get("packet_auto") else "Stream"
                 if st.button(stream_label, width="stretch"):
                     sim.toggle_packet_stream()
                     st.rerun()
             with pkt_btn3:
-                if st.button("Reset ↺", width="stretch"):
+                if st.button("Reset Packet", width="stretch"):
                     sim.reset_packet()
 
             st.caption(f"**Hop {p_hop} / {len(path) - 1}:** {active_state.get('packet_status')}")
-            # Progress bar for packet
             pkt_progress = p_hop / max(1, len(path) - 1)
             st.progress(pkt_progress)
         else:
@@ -482,13 +481,13 @@ with nav_sim:
 # TAB 2: TOPOLOGY EDITOR WORKSPACE (SECTION 11)
 # =============================================================
 with nav_topo:
-    st.markdown("### 🛠️ Dedicated Topology Editor")
-    st.caption("Add, remove, configure routers and links, load presets, and manage JSON topologies without cluttering the live simulator.")
+    st.markdown("### Topology Editor")
+    st.caption("Add, remove, configure routers and links, load presets, and manage JSON topologies.")
 
     topo_c1, topo_c2 = st.columns(2)
 
     with topo_c1:
-        st.markdown("#### 1. Presets & Generators")
+        st.markdown("#### 1. Presets and Generators")
         preset_choice = st.selectbox(
             "Select Predefined Topology Preset",
             options=[
@@ -511,7 +510,7 @@ with nav_topo:
             }
             graph.load_preset(p_map[preset_choice])
             sim.invalidate_simulation()
-            st.success(f"Loaded '{preset_choice}' successfully!")
+            st.success(f"Loaded '{preset_choice}' successfully.")
             st.rerun()
 
         st.markdown("##### Random Topology Generators")
@@ -530,16 +529,16 @@ with nav_topo:
                 sim.invalidate_simulation()
                 st.rerun()
 
-        st.markdown("#### 2. Layout & Auto-Arrangement")
-        if st.button("Arrange in Circle Layout", width="stretch"):
+        st.markdown("#### 2. Layout Arrangement")
+        if st.button("Arrange Circle Layout", width="stretch"):
             graph.auto_layout()
-            st.success("Routers arranged in deterministic circular layout.")
+            st.success("Routers arranged in circular layout.")
             st.rerun()
 
         st.markdown("#### 3. Save / Load JSON Topology")
         json_data = json.dumps(graph.to_dict(), indent=2)
         st.download_button(
-            "Download Current Topology (JSON)", data=json_data,
+            "Download Topology (JSON)", data=json_data,
             file_name="network_topology.json", mime="application/json", width="stretch"
         )
         uploaded_topo = st.file_uploader("Upload Topology JSON", type=["json"])
@@ -607,13 +606,13 @@ with nav_topo:
 
         st.markdown("#### 6. Toggle Router Online / Offline Status")
         if r_list:
-            tog_r = st.selectbox("Select Router to Toggle", options=r_list, key="tog_r")
-            curr_state = "🟢 Online" if graph.routers[tog_r].is_online else "🔴 Offline"
+            tog_r = st.selectbox("Select Router", options=r_list, key="tog_r")
+            curr_state = "Online" if graph.routers[tog_r].is_online else "Offline"
             st.caption(f"Current status: **{curr_state}**")
             if st.button("Toggle Power Status", width="stretch"):
                 new_status = graph.toggle_router_status(tog_r)
                 sim.invalidate_simulation()
-                st.info(f"Router {tog_r} is now {'🟢 Online' if new_status else '🔴 Offline'}")
+                st.info(f"Router {tog_r} is now {'Online' if new_status else 'Offline'}")
                 st.rerun()
 
 
@@ -621,18 +620,18 @@ with nav_topo:
 # TAB 3: ALGORITHM COMPARISON (SECTION 10)
 # =============================================================
 with nav_compare:
-    st.markdown("### ⚖️ Algorithm Benchmark: BFS vs. DFS on Identical Topology")
-    st.caption("Runs both BFS and DFS side-by-side using the identical source and destination routers to illustrate algorithmic differences.")
+    st.markdown("### Algorithm Benchmark: BFS vs. DFS on Identical Topology")
+    st.caption("Runs both BFS and DFS side-by-side using the identical source and destination routers.")
 
     if st.session_state["source_id"] in graph.routers and st.session_state["dest_id"] in graph.routers:
         b_res = bfs(graph, st.session_state["source_id"], st.session_state["dest_id"])
         d_res = dfs(graph, st.session_state["source_id"], st.session_state["dest_id"])
 
         comp_rows = [
-            {"Property / Metric": "Core Data Structure", "BFS (Breadth-First Search)": "FIFO Queue (`collections.deque`)", "DFS (Depth-First Search)": "LIFO Stack (`list`)"},
+            {"Property / Metric": "Core Data Structure", "BFS (Breadth-First Search)": "FIFO Queue (collections.deque)", "DFS (Depth-First Search)": "LIFO Stack (list)"},
             {"Property / Metric": "Traversal Strategy", "BFS (Breadth-First Search)": "Level-by-level exploration (radiating outward)", "DFS (Depth-First Search)": "Deep branch exploration with backtracking"},
-            {"Property / Metric": "Route Discovered?", "BFS (Breadth-First Search)": "Yes 🟢" if b_res["success"] else "No 🔴", "DFS (Depth-First Search)": "Yes 🟢" if d_res["success"] else "No 🔴"},
-            {"Property / Metric": "Reconstructed Path", "BFS (Breadth-First Search)": " ➔ ".join(b_res["path"]) if b_res["path"] else "None", "DFS (Depth-First Search)": " ➔ ".join(d_res["path"]) if d_res["path"] else "None"},
+            {"Property / Metric": "Route Discovered?", "BFS (Breadth-First Search)": "Yes" if b_res["success"] else "No", "DFS (Depth-First Search)": "Yes" if d_res["success"] else "No"},
+            {"Property / Metric": "Reconstructed Path", "BFS (Breadth-First Search)": " -> ".join(b_res["path"]) if b_res["path"] else "None", "DFS (Depth-First Search)": " -> ".join(d_res["path"]) if d_res["path"] else "None"},
             {"Property / Metric": "Route Hop Count", "BFS (Breadth-First Search)": f"{b_res['hops']} hops (Shortest Route)", "DFS (Depth-First Search)": f"{d_res['hops']} hops (Valid Path)"},
             {"Property / Metric": "Shortest Path Guarantee", "BFS (Breadth-First Search)": "Guaranteed minimum hops in unweighted graphs", "DFS (Depth-First Search)": "NOT guaranteed (may return deeper branch)"},
             {"Property / Metric": "Total Execution Steps", "BFS (Breadth-First Search)": f"{len(b_res['steps'])} steps", "DFS (Depth-First Search)": f"{len(d_res['steps'])} steps"},
@@ -649,7 +648,7 @@ with nav_compare:
 # TAB 4: GRAPH EXPLORER (CO2 & CO5)
 # =============================================================
 with nav_explorer:
-    st.markdown("### 📊 Graph Representations & Traversal Tree")
+    st.markdown("### Graph Representations and Traversal Tree")
     st.caption("Demonstrating dual synchronized graph representations and traversal trees.")
 
     exp_col1, exp_col2 = st.columns(2)
@@ -659,13 +658,13 @@ with nav_explorer:
         adj_list = graph.get_adjacency_list()
         for rid, nbrs in adj_list.items():
             r = graph.routers.get(rid)
-            st_dot = "🟢" if (r and r.is_online) else "🔴"
+            st_text = "[ONLINE]" if (r and r.is_online) else "[OFFLINE]"
             nbr_chips = "".join([f'<span class="chip chip-item">{n}</span>' for n in nbrs]) if nbrs else '<span style="color:#94A3B8; font-style:italic;">No connections</span>'
-            st.markdown(f"**{st_dot} {rid}** ({r.name if r else ''}) ➔ {nbr_chips}", unsafe_allow_html=True)
+            st.markdown(f"**{st_text} {rid}** ({r.name if r else ''}) -> {nbr_chips}", unsafe_allow_html=True)
 
     with exp_col2:
         st.markdown("#### Synchronized Adjacency Matrix")
-        st.caption("2D matrix representation. Space complexity: **O(V²)**.")
+        st.caption("2D matrix representation. Space complexity: **O(V^2)**.")
         nodes, matrix = graph.get_adjacency_matrix()
         if nodes:
             mat_df = pd.DataFrame(matrix, index=nodes, columns=nodes)
@@ -691,7 +690,7 @@ with nav_explorer:
 # TAB 5: LEARNING CENTRE (CO1, CO2, CO5 VIVA GUIDE)
 # =============================================================
 with nav_learn:
-    st.markdown("### 📚 DSA Academic Curriculum & Viva Guide")
+    st.markdown("### DSA Academic Curriculum and Viva Guide")
 
     st.markdown(
         """
