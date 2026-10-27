@@ -1,13 +1,14 @@
 """
 network.py — Network Topology, Router Models, and Graph Representations.
 
-Demonstrates CO2 (Dynamic Data Structures) and CO5 (Graph Representations).
-Maintains real-time synchronization between the dynamic Adjacency List O(V + E)
-and the Adjacency Matrix O(V^2).
+Demonstrates:
+- CO2: Dynamic Graph Operations (Adding/Removing Vertices & Edges, Adjacency Lists/Matrices)
+- CO5: Network Graph Representation & Traditional Routing Table Generation
 """
 
 import math
-import random
+import os
+import json
 from collections import deque
 from typing import Dict, List, Set, Tuple, Optional, Any
 
@@ -86,35 +87,17 @@ class Graph:
         return False
 
     def add_connection(self, u: str, v: str, weight: float = 1.0) -> bool:
-        """Adds an undirected transmission link between routers u and v with weight."""
+        """Adds an undirected transmission link between routers u and v."""
         u_id, v_id = u.strip().upper(), v.strip().upper()
         if u_id not in self.routers or v_id not in self.routers or u_id == v_id:
             return False
         if v_id in self.adjacency[u_id]:
-            return False  # Link already exists
+            return False
         if weight < 0:
             return False
         self.adjacency[u_id].append(v_id)
         self.adjacency[v_id].append(u_id)
         pair = tuple(sorted((u_id, v_id)))
-        self.weights[pair] = float(weight)
-        return True
-
-    def get_weight(self, u: str, v: str) -> float:
-        """Returns the weight / cost of the link between u and v."""
-        pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
-        return self.weights.get(pair, 1.0)
-
-    def set_weight(self, u: str, v: str, weight: float) -> bool:
-        """Sets the weight of an existing connection. Rejects negative values."""
-        if weight < 0:
-            return False
-        u_id, v_id = u.strip().upper(), v.strip().upper()
-        if u_id not in self.routers or v_id not in self.routers:
-            return False
-        pair = tuple(sorted((u_id, v_id)))
-        if v_id not in self.adjacency.get(u_id, []):
-            return False
         self.weights[pair] = float(weight)
         return True
 
@@ -130,8 +113,26 @@ class Graph:
             return True
         return False
 
-    def toggle_connection_status(self, u: str, v: str) -> Optional[bool]:
-        """Toggles link active/failed state for Failure & Recovery Lab. Returns True if active, False if failed."""
+    def get_weight(self, u: str, v: str) -> float:
+        """Returns the weight / cost of the link between u and v."""
+        pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
+        return self.weights.get(pair, 1.0)
+
+    def set_weight(self, u: str, v: str, weight: float) -> bool:
+        """Sets the weight of an existing connection."""
+        if weight < 0:
+            return False
+        u_id, v_id = u.strip().upper(), v.strip().upper()
+        if u_id not in self.routers or v_id not in self.routers:
+            return False
+        pair = tuple(sorted((u_id, v_id)))
+        if v_id not in self.adjacency.get(u_id, []):
+            return False
+        self.weights[pair] = float(weight)
+        return True
+
+    def toggle_edge_failure(self, u: str, v: str) -> Optional[bool]:
+        """Toggles link active/failed state for testing. Returns True if active, False if failed."""
         u_id, v_id = u.strip().upper(), v.strip().upper()
         if u_id not in self.routers or v_id not in self.routers:
             return None
@@ -140,28 +141,18 @@ class Graph:
             return None
         if pair in self.failed_edges:
             self.failed_edges.remove(pair)
-            return True  # Restored to active
+            return True
         else:
             self.failed_edges.add(pair)
-            return False  # Failed
-
-    def toggle_edge_failure(self, u: str, v: str) -> Optional[bool]:
-        """Alias for toggle_connection_status."""
-        return self.toggle_connection_status(u, v)
+            return False
 
     def is_edge_active(self, u: str, v: str) -> bool:
-        """Checks if a transmission link between u and v is active (not failed)."""
+        """Checks if link between u and v is active."""
         pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
         return pair not in self.failed_edges
 
-    def restore_all_failures(self):
-        """Restores all failed routers to online and all failed links to active."""
-        for r in self.routers.values():
-            r.is_online = True
-        self.failed_edges.clear()
-
     def toggle_router_status(self, router_id: str) -> Optional[bool]:
-        """Toggles router online/offline state for failure simulation."""
+        """Toggles router online/offline state."""
         rid = router_id.strip().upper()
         if rid in self.routers:
             self.routers[rid].is_online = not self.routers[rid].is_online
@@ -185,7 +176,7 @@ class Graph:
         return sorted(list(edge_set))
 
     def get_adjacency_list(self) -> Dict[str, List[str]]:
-        """Returns a sorted Adjacency List O(V + E)."""
+        """Returns sorted Adjacency List O(V + E)."""
         return {r: sorted(self.adjacency[r]) for r in sorted(self.routers.keys())}
 
     def get_adjacency_matrix(self) -> Tuple[List[str], List[List[int]]]:
@@ -201,7 +192,7 @@ class Graph:
         return nodes, matrix
 
     def get_connected_components(self) -> List[Set[str]]:
-        """Finds connected components of online routers using BFS considering active links."""
+        """Finds connected components of online routers using BFS."""
         visited = set()
         components = []
         for rid, router in sorted(self.routers.items()):
@@ -214,7 +205,8 @@ class Graph:
                 curr = queue.popleft()
                 comp.add(curr)
                 for nbr in self.adjacency.get(curr, []):
-                    if nbr in self.routers and self.routers[nbr].is_online and self.is_edge_active(curr, nbr) and nbr not in visited:
+                    if (nbr in self.routers and self.routers[nbr].is_online 
+                            and self.is_edge_active(curr, nbr) and nbr not in visited):
                         visited.add(nbr)
                         queue.append(nbr)
             components.append(comp)
@@ -244,7 +236,8 @@ class Graph:
             if curr == dst:
                 return True
             for nbr in self.adjacency.get(curr, []):
-                if nbr in self.routers and self.routers[nbr].is_online and self.is_edge_active(curr, nbr) and nbr not in visited:
+                if (nbr in self.routers and self.routers[nbr].is_online 
+                        and self.is_edge_active(curr, nbr) and nbr not in visited):
                     visited.add(nbr)
                     queue.append(nbr)
         return False
@@ -272,7 +265,6 @@ class Graph:
                 })
             return table
 
-        # Run BFS from src over active edges and online routers to find shortest-hop paths
         parents: Dict[str, Optional[str]] = {src: None}
         queue = deque([src])
         visited = {src}
@@ -281,9 +273,9 @@ class Graph:
             curr = queue.popleft()
             for nbr in sorted(self.adjacency.get(curr, [])):
                 if (nbr in self.routers and 
-                    self.routers[nbr].is_online and 
-                    self.is_edge_active(curr, nbr) and 
-                    nbr not in visited):
+                        self.routers[nbr].is_online and 
+                        self.is_edge_active(curr, nbr) and 
+                        nbr not in visited):
                     visited.add(nbr)
                     parents[nbr] = curr
                     queue.append(nbr)
@@ -298,7 +290,6 @@ class Graph:
                     "status": "Local (Self)"
                 })
             elif dest in parents:
-                # Reconstruct path from src to dest
                 path: List[str] = []
                 curr_node: Optional[str] = dest
                 while curr_node is not None:
@@ -324,20 +315,6 @@ class Graph:
 
         return table
 
-
-    def auto_layout(self):
-        """Arranges routers in a deterministic circle for clean visualization."""
-        nodes = sorted(self.routers.keys())
-        n = len(nodes)
-        if n == 0:
-            return
-        cx, cy = 340.0, 200.0
-        radius = min(220.0, max(90.0, 32.0 * n))
-        for i, rid in enumerate(nodes):
-            angle = (2 * math.pi * i) / n - (math.pi / 2)
-            self.routers[rid].x = round(cx + radius * math.cos(angle), 1)
-            self.routers[rid].y = round(cy + radius * math.sin(angle), 1)
-
     def clear(self):
         """Clears all routers, connections, weights, and failure states."""
         self.routers.clear()
@@ -355,46 +332,113 @@ class Graph:
     def load_preset(self, preset_name: str):
         """Loads educational topology presets."""
         self.clear()
-        p = preset_name.lower()
+        p = preset_name.lower().strip()
 
-        if p in ("weighted_diff", "dijkstra_diff", "comparison"):
-            # Predefined topology where BFS minimum-hop route differs from Dijkstra minimum-cost route:
-            # BFS route: S -> A -> D (2 hops, weight: 1 + 12 = 13)
-            # Dijkstra route: S -> A -> B -> D (3 hops, weight: 1 + 1 + 2 = 4)
+        if p in ("reference", "default"):
+            # Reference 7-Node WAN
+            ref_file = os.path.join(os.path.dirname(__file__), "data", "reference_network.json")
+            if os.path.exists(ref_file):
+                try:
+                    with open(ref_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    ok, _ = self.load_from_dict(data)
+                    if ok:
+                        return
+                except Exception:
+                    pass
+
             nodes = [
-                ("S", "Source Server", 120.0, 200.0),
-                ("A", "Gateway Alpha", 280.0, 110.0),
-                ("B", "Switch Beta", 460.0, 110.0),
-                ("C", "Router Charlie", 370.0, 290.0),
-                ("D", "Dest Server", 620.0, 200.0)
+                ("N1", "Server A (Src)", 100.0, 220.0),
+                ("N2", "Router 1", 230.0, 140.0),
+                ("N3", "Router 2", 230.0, 300.0),
+                ("N4", "Router 3", 380.0, 140.0),
+                ("N5", "Router 4", 380.0, 300.0),
+                ("N6", "Switch B", 510.0, 220.0),
+                ("N7", "Server B (Dst)", 630.0, 220.0)
             ]
             for rid, name, x, y in nodes:
                 self.add_router(rid, name=name, x=x, y=y)
             links = [
-                ("S", "A", 1.0),
-                ("A", "D", 12.0),
-                ("S", "C", 2.0),
-                ("C", "B", 2.0),
-                ("B", "D", 2.0),
-                ("A", "B", 1.0)
+                ("N1", "N2", 4.0), ("N1", "N3", 8.0), ("N2", "N3", 3.0),
+                ("N2", "N4", 10.0), ("N3", "N5", 2.0), ("N4", "N5", 5.0),
+                ("N4", "N6", 4.0), ("N5", "N6", 7.0), ("N6", "N7", 1.0)
             ]
             for u, v, w in links:
                 self.add_connection(u, v, weight=w)
 
+        elif p in ("ring", "cyclic"):
+            # 6-Node Circular Ring Network: R1 to R6 in a circle
+            cx, cy, r = 360.0, 210.0, 140.0
+            for i in range(6):
+                rid = f"R{i+1}"
+                angle = (2 * math.pi * i) / 6 - (math.pi / 2)
+                x = round(cx + r * math.cos(angle), 1)
+                y = round(cy + r * math.sin(angle), 1)
+                self.add_router(rid, name=f"Node {rid}", x=x, y=y)
+            
+            ring_links = [("R1", "R2"), ("R2", "R3"), ("R3", "R4"), ("R4", "R5"), ("R5", "R6"), ("R6", "R1")]
+            for u, v in ring_links:
+                self.add_connection(u, v, weight=1.0)
+
+        elif p in ("mesh", "sample", "full_mesh"):
+            # 6-Node Interconnected Mesh Network
+            sample_file = os.path.join(os.path.dirname(__file__), "data", "sample_network.json")
+            if os.path.exists(sample_file):
+                try:
+                    with open(sample_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    ok, _ = self.load_from_dict(data)
+                    if ok:
+                        return
+                except Exception:
+                    pass
+
+            nodes = [
+                ("R1", "Router R1", 120.0, 120.0),
+                ("R2", "Router R2", 320.0, 80.0),
+                ("R3", "Router R3", 520.0, 140.0),
+                ("R4", "Router R4", 180.0, 300.0),
+                ("R5", "Router R5", 380.0, 320.0),
+                ("R6", "Router R6", 580.0, 300.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name=name, x=x, y=y)
+            mesh_links = [
+                ("R1", "R2"), ("R1", "R4"), ("R2", "R3"), ("R2", "R5"),
+                ("R3", "R6"), ("R4", "R5"), ("R5", "R6"), ("R2", "R4")
+            ]
+            for u, v in mesh_links:
+                self.add_connection(u, v, weight=1.0)
+
+        elif p == "disconnected":
+            # Two isolated subnets: (R1-R2-R3) and (R4-R5-R6)
+            nodes = [
+                ("R1", "Subnet A (R1)", 140.0, 130.0),
+                ("R2", "Subnet A (R2)", 260.0, 90.0),
+                ("R3", "Subnet A (R3)", 200.0, 270.0),
+                ("R4", "Subnet B (R4)", 440.0, 130.0),
+                ("R5", "Subnet B (R5)", 560.0, 90.0),
+                ("R6", "Subnet B (R6)", 500.0, 270.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name=name, x=x, y=y)
+            for u, v in [("R1", "R2"), ("R2", "R3"), ("R1", "R3"), ("R4", "R5"), ("R5", "R6"), ("R4", "R6")]:
+                self.add_connection(u, v, weight=1.0)
+
         elif p == "direct":
-            # Linear chain: R1 - R2 - R3 - R4
-            nodes = [("R1", 120, 180), ("R2", 260, 180), ("R3", 400, 180), ("R4", 540, 180)]
+            # Linear chain for testing: R1 - R2 - R3 - R4
+            nodes = [("R1", 120.0, 200.0), ("R2", 260.0, 200.0), ("R3", 400.0, 200.0), ("R4", 540.0, 200.0)]
             for rid, x, y in nodes:
                 self.add_router(rid, x=x, y=y)
             for u, v in [("R1", "R2"), ("R2", "R3"), ("R3", "R4")]:
-                self.add_connection(u, v)
+                self.add_connection(u, v, weight=1.0)
 
         elif p == "multi_route":
-            # Spine-leaf: upper path 3 hops, lower path 4 hops
+            # Spine-leaf test network: upper path 3 hops, lower path 4 hops
             nodes = [
-                ("R1", 100, 180), ("R2", 260, 90), ("R3", 420, 90),
-                ("R4", 220, 270), ("R5", 340, 270), ("R6", 460, 270),
-                ("R7", 580, 180)
+                ("R1", 100.0, 180.0), ("R2", 260.0, 90.0), ("R3", 420.0, 90.0),
+                ("R4", 220.0, 270.0), ("R5", 340.0, 270.0), ("R6", 460.0, 270.0),
+                ("R7", 580.0, 180.0)
             ]
             for rid, x, y in nodes:
                 self.add_router(rid, x=x, y=y)
@@ -403,113 +447,22 @@ class Graph:
                 ("R1", "R4"), ("R4", "R5"), ("R5", "R6"), ("R6", "R7")
             ]
             for u, v in links:
-                self.add_connection(u, v)
-
-        elif p == "cyclic":
-            # 6-node cycle with cross-links
-            nodes = [
-                ("R1", 140, 130), ("R2", 300, 80), ("R3", 460, 130),
-                ("R4", 460, 250), ("R5", 300, 300), ("R6", 140, 250)
-            ]
-            for rid, x, y in nodes:
-                self.add_router(rid, x=x, y=y)
-            links = [
-                ("R1", "R2"), ("R2", "R3"), ("R3", "R4"),
-                ("R4", "R5"), ("R5", "R6"), ("R6", "R1"),
-                ("R2", "R5"), ("R2", "R4")
-            ]
-            for u, v in links:
-                self.add_connection(u, v)
-
-        elif p == "disconnected":
-            # Two isolated subnets (R1-R2-R3) and (R4-R5-R6)
-            nodes = [
-                ("R1", 140, 120), ("R2", 240, 90), ("R3", 200, 240),
-                ("R4", 440, 120), ("R5", 540, 90), ("R6", 500, 240)
-            ]
-            for rid, x, y in nodes:
-                self.add_router(rid, x=x, y=y)
-            for u, v in [("R1", "R2"), ("R2", "R3"), ("R1", "R3"), ("R4", "R5"), ("R5", "R6"), ("R4", "R6")]:
-                self.add_connection(u, v)
+                self.add_connection(u, v, weight=1.0)
 
         elif p == "offline_router":
-            # Bridge router R2 is offline; bypass via R4 exists
+            # R2 is offline on bridge R1-R2-R3. Bypass via R4 exists
             nodes = [
-                ("R1", 120, 180), ("R2", 280, 120), ("R3", 440, 180),
-                ("R4", 280, 250), ("R5", 560, 180)
+                ("R1", 120.0, 180.0), ("R2", 280.0, 120.0), ("R3", 440.0, 180.0),
+                ("R4", 280.0, 250.0), ("R5", 560.0, 180.0)
             ]
             for rid, x, y in nodes:
                 self.add_router(rid, x=x, y=y, is_online=(rid != "R2"))
             for u, v in [("R1", "R2"), ("R2", "R3"), ("R1", "R4"), ("R4", "R3"), ("R3", "R5")]:
-                self.add_connection(u, v)
-
-        elif p in ("reference", "lan_wan", "default_ui"):
-            # Reference LAN/WAN 7-node network matching user screenshot
-            import os
-            import json
-            ref_file = os.path.join(os.path.dirname(__file__), "data", "reference_network.json")
-            loaded = False
-            if os.path.exists(ref_file):
-                try:
-                    with open(ref_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    ok, _ = self.load_from_dict(data)
-                    if ok:
-                        loaded = True
-                except Exception:
-                    loaded = False
-
-            if not loaded:
-                nodes = [
-                    ("N1", "Server A (Src)", 100.0, 220.0),
-                    ("N2", "Router 1", 230.0, 140.0),
-                    ("N3", "Router 2", 230.0, 300.0),
-                    ("N4", "Router 3", 380.0, 140.0),
-                    ("N5", "Router 4", 380.0, 300.0),
-                    ("N6", "Switch B", 510.0, 220.0),
-                    ("N7", "Server B (Dst)", 630.0, 220.0)
-                ]
-                for rid, name, x, y in nodes:
-                    self.add_router(rid, name=name, x=x, y=y)
-                links = [
-                    ("N1", "N2", 4.0),
-                    ("N1", "N3", 8.0),
-                    ("N2", "N3", 3.0),
-                    ("N2", "N4", 10.0),
-                    ("N3", "N5", 2.0),
-                    ("N4", "N5", 5.0),
-                    ("N4", "N6", 4.0),
-                    ("N5", "N6", 7.0),
-                    ("N6", "N7", 1.0)
-                ]
-                for u, v, w in links:
-                    self.add_connection(u, v, weight=w)
+                self.add_connection(u, v, weight=1.0)
 
         else:
-            # Default balanced 6-router mesh (R1 to R6)
-            import os
-            import json
-            sample_file = os.path.join(os.path.dirname(__file__), "data", "sample_network.json")
-            loaded_from_file = False
-            if os.path.exists(sample_file):
-                try:
-                    with open(sample_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    ok, _ = self.load_from_dict(data)
-                    if ok:
-                        loaded_from_file = True
-                except Exception:
-                    loaded_from_file = False
-
-            if not loaded_from_file:
-                nodes = [
-                    ("R1", 120, 110), ("R2", 300, 70), ("R3", 480, 110),
-                    ("R4", 170, 250), ("R5", 350, 260), ("R6", 520, 250)
-                ]
-                for rid, x, y in nodes:
-                    self.add_router(rid, x=x, y=y)
-                for u, v in [("R1", "R2"), ("R1", "R4"), ("R2", "R3"), ("R2", "R5"), ("R3", "R6"), ("R4", "R5"), ("R5", "R6")]:
-                    self.add_connection(u, v)
+            # Fallback to reference network
+            self.load_preset("reference")
 
     def get_summary(self) -> Dict[str, Any]:
         """Returns high-level graph statistics."""
@@ -524,48 +477,6 @@ class Graph:
             "component_count": len(comps),
             "components": [sorted(list(c)) for c in comps]
         }
-
-    def generate_random_connected(self, num_routers: int = 6):
-        """Generates a connected random network with circular coordinates."""
-        self.clear()
-        n = max(3, min(12, num_routers))
-        names = [f"R{i+1}" for i in range(n)]
-        cx, cy, radius = 340.0, 200.0, 160.0
-        for i, name in enumerate(names):
-            ang = (2 * math.pi * i) / n - (math.pi / 2)
-            self.add_router(name, x=round(cx + radius * math.cos(ang), 1), y=round(cy + radius * math.sin(ang), 1))
-
-        # Build spanning tree first to guarantee connectivity
-        for i in range(n - 1):
-            self.add_connection(names[i], names[i + 1])
-        if n > 2:
-            self.add_connection(names[-1], names[0])
-            for _ in range(n // 2):
-                u, v = random.sample(names, 2)
-                self.add_connection(u, v)
-
-    def generate_random_disconnected(self, num_routers: int = 6):
-        """Generates a partitioned network with two disconnected subnets."""
-        self.clear()
-        n = max(4, min(12, num_routers))
-        half = n // 2
-        g1 = [f"R{i+1}" for i in range(half)]
-        g2 = [f"R{i+1}" for i in range(half, n)]
-
-        for i, name in enumerate(g1):
-            self.add_router(name, x=140.0 + (i % 2) * 110.0, y=100.0 + (i // 2) * 120.0)
-        for i, name in enumerate(g2):
-            self.add_router(name, x=440.0 + (i % 2) * 110.0, y=100.0 + (i // 2) * 120.0)
-
-        for i in range(len(g1) - 1):
-            self.add_connection(g1[i], g1[i + 1])
-        if len(g1) > 2:
-            self.add_connection(g1[-1], g1[0])
-
-        for i in range(len(g2) - 1):
-            self.add_connection(g2[i], g2[i + 1])
-        if len(g2) > 2:
-            self.add_connection(g2[-1], g2[0])
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes topology to a portable dictionary format."""

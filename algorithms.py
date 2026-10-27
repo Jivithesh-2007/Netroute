@@ -4,11 +4,10 @@ algorithms.py — Routing Traversal, Searching, Sorting, and Tree Structure Algo
 Integrated Course Outcomes:
 - CO3: Searching (Linear vs. Binary) and Sorting (Bubble vs. Insertion) Algorithm Evaluation.
 - CO4: Routing Traversal Spanning Tree Structure from Parent Pointers.
-- CO5: Graph Traversals (BFS, DFS, Dijkstra) and Route Reconstruction.
+- CO5: Graph Traversals (BFS and DFS) and Route Reconstruction.
 """
 
 import time
-import heapq
 from collections import deque
 from typing import Dict, List, Set, Tuple, Optional, Any
 from network import Graph
@@ -18,7 +17,7 @@ def reconstruct_route_from_parents(parents: Dict[str, Optional[str]], dst: str) 
     """
     Reconstructs the discovered route from destination back to source
     using parent pointers recorded during traversal in O(L) time,
-    where L is the number of hops in the route.
+    where L is the number of hops.
     """
     if dst not in parents:
         return []
@@ -45,7 +44,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         return {
             "algorithm": "BFS (FIFO Queue)",
             "success": False,
-            "message": "Network graph is empty. Please add routers or load a preset.",
+            "message": "Network graph is empty.",
             "steps": [],
             "path": [],
             "hops": 0,
@@ -81,31 +80,12 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "execution_time_ms": 0.0
         }
 
-    if not graph.routers[src].is_online:
+    if not graph.routers[src].is_online or not graph.routers[dst].is_online:
+        offline_node = src if not graph.routers[src].is_online else dst
         return {
             "algorithm": "BFS (FIFO Queue)",
             "success": False,
-            "message": f"Source router '{src}' is OFFLINE. Cannot transmit packets from offline hardware.",
-            "steps": [],
-            "path": [],
-            "hops": 0,
-            "visited": [],
-            "parents": {},
-            "tree_edges": [],
-            "max_structure": 0,
-            "total_pushes": 0,
-            "total_pops": 0,
-            "total_enqueues": 0,
-            "total_dequeues": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": 0.0
-        }
-
-    if not graph.routers[dst].is_online:
-        return {
-            "algorithm": "BFS (FIFO Queue)",
-            "success": False,
-            "message": f"Destination router '{dst}' is OFFLINE. Packets cannot be delivered.",
+            "message": f"Router '{offline_node}' is OFFLINE. Cannot transmit packets.",
             "steps": [],
             "path": [],
             "hops": 0,
@@ -209,18 +189,17 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "visited": list(visited_order),
             "parents": dict(parents),
             "active_edge": None,
-            "description": f"Dequeued router '{curr}' from queue front. Examining its adjacent transmission links."
+            "description": f"Dequeued router '{curr}' from queue front. Examining its adjacent links."
         })
 
         if curr == dst:
             found = True
             break
 
-        # Explore neighbors in sorted alphabetical order for deterministic behavior
         for nbr in sorted(graph.adjacency.get(curr, [])):
             if nbr not in graph.routers or not graph.routers[nbr].is_online:
                 continue
-            if hasattr(graph, "is_edge_active") and not graph.is_edge_active(curr, nbr):
+            if not graph.is_edge_active(curr, nbr):
                 continue
 
             edge_pair = tuple(sorted((curr, nbr)))
@@ -248,7 +227,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
                     "visited": list(visited_order),
                     "parents": dict(parents),
                     "active_edge": (curr, nbr),
-                    "description": f"Discovered unvisited neighbor '{nbr}' via link ({curr} <-> {nbr}). Enqueued at rear; set parent[{nbr}] = '{curr}'."
+                    "description": f"Discovered unvisited neighbor '{nbr}' via ({curr} <-> {nbr}). Enqueued; set parent[{nbr}] = '{curr}'."
                 })
 
                 if nbr == dst:
@@ -268,7 +247,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
                         "visited": list(visited_order),
                         "parents": dict(parents),
                         "active_edge": (curr, nbr),
-                        "description": f"Destination router '{dst}' discovered! BFS guarantees minimum-hop route in unweighted graphs."
+                        "description": f"Destination router '{dst}' discovered! BFS guarantees minimum hops in unweighted graphs."
                     })
                     break
 
@@ -292,7 +271,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "visited": list(visited_order),
             "parents": dict(parents),
             "active_edge": None,
-            "description": f"Queue exhausted. Destination '{dst}' is unreachable from '{src}' (network disconnected or blocked by offline routers)."
+            "description": f"Queue exhausted. Destination '{dst}' is unreachable from '{src}'."
         })
         return {
             "algorithm": "BFS (FIFO Queue)",
@@ -313,7 +292,6 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "message": f"No route found between '{src}' and '{dst}'."
         }
 
-    # Reconstruct shortest path using parent pointers
     path = reconstruct_route_from_parents(parents, dst)
     path_cost = sum(graph.get_weight(path[i], path[i+1]) for i in range(len(path) - 1)) if len(path) > 1 else 0.0
 
@@ -331,7 +309,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "visited": list(visited_order),
         "parents": dict(parents),
         "active_edge": None,
-        "description": f"BFS shortest route reconstructed via parent pointers: {' -> '.join(path)} ({len(path) - 1} hops, cost: {int(path_cost) if path_cost.is_integer() else path_cost})."
+        "description": f"BFS shortest route reconstructed: {' -> '.join(path)} ({len(path) - 1} hops)."
     })
 
     return {
@@ -359,7 +337,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
     """
     Depth-First Search routing using an explicit LIFO stack (list).
     Explores a single branch as deeply as possible before backtracking.
-    Important: DFS discovers a valid reachable path, but does NOT guarantee minimum hops.
+    DFS discovers a valid reachable path, but does NOT guarantee minimum hops.
     """
     start_time = time.perf_counter()
     src, dst = src.strip().upper(), dst.strip().upper()
@@ -369,7 +347,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         return {
             "algorithm": "DFS (LIFO Stack)",
             "success": False,
-            "message": "Network graph is empty. Please add routers or load a preset.",
+            "message": "Network graph is empty.",
             "steps": [],
             "path": [],
             "hops": 0,
@@ -403,30 +381,12 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "execution_time_ms": 0.0
         }
 
-    if not graph.routers[src].is_online:
+    if not graph.routers[src].is_online or not graph.routers[dst].is_online:
+        offline_node = src if not graph.routers[src].is_online else dst
         return {
             "algorithm": "DFS (LIFO Stack)",
             "success": False,
-            "message": f"Source router '{src}' is OFFLINE. Cannot initiate transmission.",
-            "steps": [],
-            "path": [],
-            "hops": 0,
-            "visited": [],
-            "parents": {},
-            "tree_edges": [],
-            "max_structure": 0,
-            "total_pushes": 0,
-            "total_pops": 0,
-            "backtrack_count": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": 0.0
-        }
-
-    if not graph.routers[dst].is_online:
-        return {
-            "algorithm": "DFS (LIFO Stack)",
-            "success": False,
-            "message": f"Destination router '{dst}' is OFFLINE. Packets cannot be delivered.",
+            "message": f"Router '{offline_node}' is OFFLINE. Cannot transmit packets.",
             "steps": [],
             "path": [],
             "hops": 0,
@@ -443,7 +403,6 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
 
     steps: List[Dict[str, Any]] = []
 
-    # Handle trivial case: Source == Destination
     if src == dst:
         elapsed = (time.perf_counter() - start_time) * 1000.0
         steps.append({
@@ -481,7 +440,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "message": f"Direct route to '{src}' (0 hops)."
         }
 
-    # Explicit LIFO stack storing (router_id, current_path)
+    # Stack stores (router_id, current_path)
     stack: List[Tuple[str, List[str]]] = [(src, [src])]
     visited: Set[str] = set()
     visited_order: List[str] = []
@@ -538,7 +497,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "visited": list(visited_order),
             "parents": dict(parents),
             "active_edge": None,
-            "description": f"Popped router '{curr}' from stack top (Depth {len(path) - 1}). Exploring its deepest branch."
+            "description": f"Popped router '{curr}' from stack top (Depth {len(path) - 1})."
         })
 
         if curr == dst:
@@ -558,15 +517,13 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
                 "visited": list(visited_order),
                 "parents": dict(parents),
                 "active_edge": None,
-                "description": f"Destination router '{dst}' reached via DFS path! (Note: DFS does not guarantee minimum hops)."
+                "description": f"Destination router '{dst}' reached via DFS path!"
             })
             break
 
-        # Push unvisited neighbors in reverse alphabetical order so that
-        # the alphabetically first neighbor lands at the top of the stack and is popped next.
         valid_nbrs = [
             n for n in sorted(graph.adjacency.get(curr, []), reverse=True)
-            if n in graph.routers and graph.routers[n].is_online and n not in visited and (not hasattr(graph, "is_edge_active") or graph.is_edge_active(curr, n))
+            if n in graph.routers and graph.routers[n].is_online and n not in visited and graph.is_edge_active(curr, n)
         ]
 
         if valid_nbrs:
@@ -594,7 +551,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
                     "visited": list(visited_order),
                     "parents": dict(parents),
                     "active_edge": (curr, nbr),
-                    "description": f"Pushed unvisited neighbor '{nbr}' onto DFS stack top via link ({curr} <-> {nbr})."
+                    "description": f"Pushed unvisited neighbor '{nbr}' onto DFS stack top via ({curr} <-> {nbr})."
                 })
         elif stack:
             backtrack_count += 1
@@ -614,7 +571,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
                 "visited": list(visited_order),
                 "parents": dict(parents),
                 "active_edge": None,
-                "description": f"Dead end reached at '{curr}'. Backtracking to previous candidate on stack: '{next_top}'."
+                "description": f"Dead end reached at '{curr}'. Backtracking to: '{next_top}'."
             })
 
     elapsed = (time.perf_counter() - start_time) * 1000.0
@@ -672,7 +629,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "visited": list(visited_order),
         "parents": dict(parents),
         "active_edge": None,
-        "description": f"DFS route discovered: {' -> '.join(found_path)} ({len(found_path) - 1} hops, cost: {int(path_cost) if path_cost.is_integer() else path_cost})."
+        "description": f"DFS route discovered: {' -> '.join(found_path)} ({len(found_path) - 1} hops)."
     })
 
     return {
@@ -695,405 +652,6 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
     }
 
 
-def dijkstra(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
-    """
-    Dijkstra's Shortest Path Algorithm using a Min-Heap Priority Queue (heapq).
-    Guarantees the minimum-total-cost route in a weighted graph with non-negative edge weights (w >= 0).
-    Unlike BFS (which optimizes hop count), Dijkstra minimizes cumulative link transmission costs.
-    """
-    start_time = time.perf_counter()
-    src, dst = src.strip().upper(), dst.strip().upper()
-
-    # Pre-condition validation 1: Empty graph
-    if not graph.routers:
-        return {
-            "algorithm": "Dijkstra (Priority Queue)",
-            "success": False,
-            "message": "Network graph is empty. Please add routers or load a preset.",
-            "steps": [],
-            "path": [],
-            "hops": 0,
-            "path_cost": 0.0,
-            "visited": [],
-            "parents": {},
-            "distances": {},
-            "tree_edges": [],
-            "max_structure": 0,
-            "total_pushes": 0,
-            "total_pops": 0,
-            "total_relaxations": 0,
-            "total_heap_pushes": 0,
-            "total_heap_pops": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": 0.0
-        }
-
-    # Pre-condition validation 2: Router existence
-    if src not in graph.routers or dst not in graph.routers:
-        return {
-            "algorithm": "Dijkstra (Priority Queue)",
-            "success": False,
-            "message": f"Endpoint router '{src}' or '{dst}' does not exist in the network.",
-            "steps": [],
-            "path": [],
-            "hops": 0,
-            "path_cost": 0.0,
-            "visited": [],
-            "parents": {},
-            "distances": {},
-            "tree_edges": [],
-            "max_structure": 0,
-            "total_pushes": 0,
-            "total_pops": 0,
-            "total_relaxations": 0,
-            "total_heap_pushes": 0,
-            "total_heap_pops": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": 0.0
-        }
-
-    # Pre-condition validation 3: Hardware online status
-    if not graph.routers[src].is_online:
-        return {
-            "algorithm": "Dijkstra (Priority Queue)",
-            "success": False,
-            "message": f"Source router '{src}' is OFFLINE. Cannot originate packets from offline hardware.",
-            "steps": [],
-            "path": [],
-            "hops": 0,
-            "path_cost": 0.0,
-            "visited": [],
-            "parents": {},
-            "distances": {},
-            "tree_edges": [],
-            "max_structure": 0,
-            "total_pushes": 0,
-            "total_pops": 0,
-            "total_relaxations": 0,
-            "total_heap_pushes": 0,
-            "total_heap_pops": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": 0.0
-        }
-
-    if not graph.routers[dst].is_online:
-        return {
-            "algorithm": "Dijkstra (Priority Queue)",
-            "success": False,
-            "message": f"Destination router '{dst}' is OFFLINE. Packet delivery impossible.",
-            "steps": [],
-            "path": [],
-            "hops": 0,
-            "path_cost": 0.0,
-            "visited": [],
-            "parents": {},
-            "distances": {},
-            "tree_edges": [],
-            "max_structure": 0,
-            "total_pushes": 0,
-            "total_pops": 0,
-            "total_relaxations": 0,
-            "total_heap_pushes": 0,
-            "total_heap_pops": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": 0.0
-        }
-
-    # Pre-condition validation 4: Non-negative weight constraint
-    for (u, v), w in graph.weights.items():
-        if w < 0:
-            return {
-                "algorithm": "Dijkstra (Priority Queue)",
-                "success": False,
-                "message": f"Dijkstra requires all edge weights to be non-negative (>= 0). Found invalid weight {w} on link ({u} <-> {v}).",
-                "steps": [],
-                "path": [],
-                "hops": 0,
-                "path_cost": 0.0,
-                "visited": [],
-                "parents": {},
-                "distances": {},
-                "tree_edges": [],
-                "max_structure": 0,
-                "total_pushes": 0,
-                "total_pops": 0,
-                "total_relaxations": 0,
-                "total_heap_pushes": 0,
-                "total_heap_pops": 0,
-                "explored_edges_count": 0,
-                "execution_time_ms": 0.0
-            }
-
-    steps: List[Dict[str, Any]] = []
-
-    # Handle trivial case: Source == Destination
-    if src == dst:
-        elapsed = (time.perf_counter() - start_time) * 1000.0
-        steps.append({
-            "step": 1,
-            "operation": "COMPLETE",
-            "current_node": src,
-            "current_cost": 0.0,
-            "structure": [f"{src} (cost: 0)"],
-            "priority_queue": [(0.0, src)],
-            "tentative_distances": {src: 0.0},
-            "visited": [src],
-            "parents": {src: None},
-            "active_edge": None,
-            "action_target": src,
-            "relaxations": 0,
-            "heap_pushes": 1,
-            "heap_pops": 0,
-            "max_structure": 1,
-            "description": f"Source router '{src}' is identical to destination. Minimum cost is 0 (0 hops)."
-        })
-        return {
-            "algorithm": "Dijkstra (Priority Queue)",
-            "success": True,
-            "path": [src],
-            "hops": 0,
-            "path_cost": 0.0,
-            "steps": steps,
-            "visited": [src],
-            "parents": {src: None},
-            "distances": {src: 0.0},
-            "tree_edges": [],
-            "max_structure": 1,
-            "total_pushes": 1,
-            "total_pops": 0,
-            "total_relaxations": 0,
-            "total_heap_pushes": 1,
-            "total_heap_pops": 0,
-            "explored_edges_count": 0,
-            "execution_time_ms": elapsed,
-            "message": f"Direct route to '{src}' (0 hops, cost: 0)."
-        }
-
-    # Data structure initializations
-    distances: Dict[str, float] = {r: float("inf") for r in graph.routers}
-    distances[src] = 0.0
-    parents: Dict[str, Optional[str]] = {src: None}
-    visited_settled: List[str] = []
-    tree_edges: List[Tuple[str, str]] = []
-    explored_edges_set: Set[Tuple[str, str]] = set()
-
-    # Min-Heap stores (cost, router_id)
-    pq: List[Tuple[float, str]] = [(0.0, src)]
-    total_relaxations = 0
-    total_heap_pushes = 1
-    total_heap_pops = 0
-    max_pq_size = 1
-
-    def format_pq_items(heap_list: List[Tuple[float, str]]) -> List[str]:
-        return [f"{node} (cost: {int(c) if c.is_integer() else c})" for c, node in sorted(heap_list)]
-
-    def get_tentative_snapshot() -> Dict[str, Any]:
-        return {r: (int(distances[r]) if distances[r].is_integer() else distances[r]) if distances[r] != float("inf") else "inf" for r in sorted(graph.routers.keys())}
-
-    # Step 1: Priority Queue Initialization
-    steps.append({
-        "step": len(steps) + 1,
-        "operation": "INIT",
-        "current_node": src,
-        "current_cost": 0.0,
-        "structure": format_pq_items(pq),
-        "priority_queue": sorted(list(pq)),
-        "tentative_distances": get_tentative_snapshot(),
-        "visited": [],
-        "parents": dict(parents),
-        "active_edge": None,
-        "action_target": src,
-        "relaxations": total_relaxations,
-        "heap_pushes": total_heap_pushes,
-        "heap_pops": total_heap_pops,
-        "max_structure": max_pq_size,
-        "description": f"Initialized Dijkstra Min-Heap Priority Queue with source '{src}' at cumulative cost 0.0."
-    })
-
-    found = False
-    while pq:
-        cost, curr = heapq.heappop(pq)
-        total_heap_pops += 1
-
-        # Skip stale heap entries if a shorter path to curr was already settled
-        if cost > distances[curr]:
-            steps.append({
-                "step": len(steps) + 1,
-                "operation": "SKIP_OUTDATED",
-                "current_node": curr,
-                "current_cost": cost,
-                "structure": format_pq_items(pq),
-                "priority_queue": sorted(list(pq)),
-                "tentative_distances": get_tentative_snapshot(),
-                "visited": list(visited_settled),
-                "parents": dict(parents),
-                "active_edge": None,
-                "action_target": curr,
-                "relaxations": total_relaxations,
-                "heap_pushes": total_heap_pushes,
-                "heap_pops": total_heap_pops,
-                "max_structure": max_pq_size,
-                "description": f"Skipped outdated heap entry for '{curr}' with cost {cost} (shorter distance {distances[curr]} already finalized)."
-            })
-            continue
-
-        if curr not in visited_settled:
-            visited_settled.append(curr)
-
-        steps.append({
-            "step": len(steps) + 1,
-            "operation": "EXTRACT_MIN",
-            "current_node": curr,
-            "current_cost": cost,
-            "structure": format_pq_items(pq),
-            "priority_queue": sorted(list(pq)),
-            "tentative_distances": get_tentative_snapshot(),
-            "visited": list(visited_settled),
-            "parents": dict(parents),
-            "active_edge": None,
-            "action_target": curr,
-            "relaxations": total_relaxations,
-            "heap_pushes": total_heap_pushes,
-            "heap_pops": total_heap_pops,
-            "max_structure": max_pq_size,
-            "description": f"Extracted minimum-cost router '{curr}' from priority queue with settled distance {int(cost) if cost.is_integer() else cost}."
-        })
-
-        if curr == dst:
-            found = True
-            break
-
-        # Relax adjacent links in deterministic sorted order
-        for nbr in sorted(graph.adjacency.get(curr, [])):
-            if nbr not in graph.routers or not graph.routers[nbr].is_online:
-                continue
-            if hasattr(graph, "is_edge_active") and not graph.is_edge_active(curr, nbr):
-                continue
-
-            edge_pair = tuple(sorted((curr, nbr)))
-            explored_edges_set.add(edge_pair)
-            weight = graph.get_weight(curr, nbr)
-            new_dist = cost + weight
-
-            # Relaxation condition: discovered a strictly lower cumulative cost
-            if new_dist < distances[nbr]:
-                old_dist_str = "inf" if distances[nbr] == float("inf") else str(int(distances[nbr]) if distances[nbr].is_integer() else distances[nbr])
-                distances[nbr] = new_dist
-                parents[nbr] = curr
-                tree_edges.append((curr, nbr))
-                total_relaxations += 1
-                heapq.heappush(pq, (new_dist, nbr))
-                total_heap_pushes += 1
-                max_pq_size = max(max_pq_size, len(pq))
-
-                new_dist_str = str(int(new_dist) if new_dist.is_integer() else new_dist)
-                steps.append({
-                    "step": len(steps) + 1,
-                    "operation": "RELAX_EDGE",
-                    "current_node": curr,
-                    "current_cost": cost,
-                    "structure": format_pq_items(pq),
-                    "priority_queue": sorted(list(pq)),
-                    "tentative_distances": get_tentative_snapshot(),
-                    "visited": list(visited_settled),
-                    "parents": dict(parents),
-                    "active_edge": (curr, nbr),
-                    "action_target": nbr,
-                    "relaxations": total_relaxations,
-                    "heap_pushes": total_heap_pushes,
-                    "heap_pops": total_heap_pops,
-                    "max_structure": max_pq_size,
-                    "description": f"Relaxed link ({curr} <-> {nbr}, weight: {int(weight) if weight.is_integer() else weight}). Improved distance to '{nbr}' from {old_dist_str} to {new_dist_str}. Enqueued into Min-Heap."
-                })
-
-    elapsed = (time.perf_counter() - start_time) * 1000.0
-
-    if not found:
-        steps.append({
-            "step": len(steps) + 1,
-            "operation": "FAILED",
-            "current_node": None,
-            "current_cost": None,
-            "structure": format_pq_items(pq),
-            "priority_queue": sorted(list(pq)),
-            "tentative_distances": get_tentative_snapshot(),
-            "visited": list(visited_settled),
-            "parents": dict(parents),
-            "active_edge": None,
-            "action_target": None,
-            "relaxations": total_relaxations,
-            "heap_pushes": total_heap_pushes,
-            "heap_pops": total_heap_pops,
-            "max_structure": max_pq_size,
-            "description": f"Priority queue exhausted. Destination '{dst}' is unreachable from '{src}' via available transmission links."
-        })
-        return {
-            "algorithm": "Dijkstra (Priority Queue)",
-            "success": False,
-            "path": [],
-            "hops": 0,
-            "path_cost": 0.0,
-            "steps": steps,
-            "visited": visited_settled,
-            "parents": parents,
-            "distances": distances,
-            "tree_edges": tree_edges,
-            "max_structure": max_pq_size,
-            "total_pushes": total_heap_pushes,
-            "total_pops": total_heap_pops,
-            "total_relaxations": total_relaxations,
-            "total_heap_pushes": total_heap_pushes,
-            "total_heap_pops": total_heap_pops,
-            "explored_edges_count": len(explored_edges_set),
-            "execution_time_ms": elapsed,
-            "message": f"Destination '{dst}' is unreachable from '{src}'."
-        }
-
-    path = reconstruct_route_from_parents(parents, dst)
-    final_cost = distances[dst]
-
-    steps.append({
-        "step": len(steps) + 1,
-        "operation": "COMPLETE",
-        "current_node": dst,
-        "current_cost": final_cost,
-        "structure": format_pq_items(pq),
-        "priority_queue": sorted(list(pq)),
-        "tentative_distances": get_tentative_snapshot(),
-        "visited": list(visited_settled),
-        "parents": dict(parents),
-        "active_edge": None,
-        "action_target": dst,
-        "relaxations": total_relaxations,
-        "heap_pushes": total_heap_pushes,
-        "heap_pops": total_heap_pops,
-        "max_structure": max_pq_size,
-        "description": f"Dijkstra minimum-cost route verified: {' -> '.join(path)} ({len(path) - 1} hops, total cost: {int(final_cost) if final_cost.is_integer() else final_cost})."
-    })
-
-    return {
-        "algorithm": "Dijkstra (Priority Queue)",
-        "success": True,
-        "path": path,
-        "hops": len(path) - 1,
-        "path_cost": final_cost,
-        "steps": steps,
-        "visited": visited_settled,
-        "parents": parents,
-        "distances": distances,
-        "tree_edges": tree_edges,
-        "max_structure": max_pq_size,
-        "total_pushes": total_heap_pushes,
-        "total_pops": total_heap_pops,
-        "total_relaxations": total_relaxations,
-        "total_heap_pushes": total_heap_pushes,
-        "total_heap_pops": total_heap_pops,
-        "explored_edges_count": len(explored_edges_set),
-        "execution_time_ms": elapsed,
-        "message": f"Minimum-cost route discovered: {' -> '.join(path)} (cost: {int(final_cost) if final_cost.is_integer() else final_cost}, {len(path) - 1} hops)."
-    }
-
-
 # =============================================================================
 # CO3: SEARCHING ALGORITHM EVALUATION
 # =============================================================================
@@ -1101,12 +659,7 @@ def dijkstra(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
 def linear_search(dataset: List[str], target: str) -> Dict[str, Any]:
     """
     Performs Linear Search on an unsorted or sorted list of router IDs.
-    
     Theoretical Time Complexity: O(n) worst/average, O(1) best case.
-    Space Complexity: O(1) auxiliary space.
-    
-    Examines each element sequentially from index 0 to n - 1 until the
-    target router ID is found or the end of the dataset is reached.
     """
     start_time = time.perf_counter()
     target_clean = str(target).strip().upper()
@@ -1155,13 +708,8 @@ def linear_search(dataset: List[str], target: str) -> Dict[str, Any]:
 def binary_search(sorted_dataset: List[str], target: str, verify_sorted: bool = True) -> Dict[str, Any]:
     """
     Performs Binary Search on a sorted list of router IDs.
-    
     Theoretical Time Complexity: O(log n) worst/average, O(1) best case.
-    Space Complexity: O(1) auxiliary space.
-    
-    Requires data to be sorted because it uses divide-and-conquer:
-    comparing the target with the middle element eliminates half of the
-    remaining search space in every step.
+    Requires data to be sorted (divide-and-conquer).
     """
     start_time = time.perf_counter()
     target_clean = str(target).strip().upper()
@@ -1170,10 +718,8 @@ def binary_search(sorted_dataset: List[str], target: str, verify_sorted: bool = 
     found_idx = -1
     steps: List[Dict[str, Any]] = []
 
-    # Format list values cleanly for consistent comparison
     clean_data = [str(x).strip().upper() for x in sorted_dataset]
 
-    # Verify sorted precondition
     is_sorted = True
     if verify_sorted and len(clean_data) > 1:
         for i in range(len(clean_data) - 1):
@@ -1232,7 +778,7 @@ def binary_search(sorted_dataset: List[str], target: str, verify_sorted: bool = 
                 "mid_value": mid_val,
                 "action": "GO_RIGHT",
                 "comparisons": comparisons,
-                "description": f"Step {step_num}: Mid '{mid_val}' < target '{target_clean}'. Eliminating left half; moving low to {mid + 1}."
+                "description": f"Step {step_num}: Mid '{mid_val}' < '{target_clean}'. Eliminating left half; moving low to {mid + 1}."
             })
             low = mid + 1
         else:
@@ -1244,7 +790,7 @@ def binary_search(sorted_dataset: List[str], target: str, verify_sorted: bool = 
                 "mid_value": mid_val,
                 "action": "GO_LEFT",
                 "comparisons": comparisons,
-                "description": f"Step {step_num}: Mid '{mid_val}' > target '{target_clean}'. Eliminating right half; moving high to {mid - 1}."
+                "description": f"Step {step_num}: Mid '{mid_val}' > '{target_clean}'. Eliminating right half; moving high to {mid - 1}."
             })
             high = mid - 1
         step_num += 1
@@ -1275,12 +821,7 @@ def binary_search(sorted_dataset: List[str], target: str, verify_sorted: bool = 
 def bubble_sort(dataset: List[str]) -> Dict[str, Any]:
     """
     Performs Bubble Sort on a list of router IDs.
-    
     Theoretical Time Complexity: O(n^2) worst/average, O(n) best case (with early exit).
-    Space Complexity: O(1) auxiliary space (in-place on copy).
-    
-    Repeatedly steps through the list, compares adjacent elements, and swaps
-    them if they are in the wrong order until no swaps are needed.
     """
     start_time = time.perf_counter()
     arr = [str(x).strip().upper() for x in dataset]
@@ -1323,19 +864,14 @@ def bubble_sort(dataset: List[str]) -> Dict[str, Any]:
         "worst_case": "O(n²)",
         "is_correct": is_correct,
         "pass_logs": pass_logs,
-        "message": f"Bubble Sort completed in {comparisons} comparisons and {swaps} swaps. Correctness verified: {is_correct}."
+        "message": f"Bubble Sort completed in {comparisons} comparisons and {swaps} swaps. Correctness: {is_correct}."
     }
 
 
 def insertion_sort(dataset: List[str]) -> Dict[str, Any]:
     """
     Performs Insertion Sort on a list of router IDs.
-    
-    Theoretical Time Complexity: O(n^2) worst/average, O(n) best case (for already sorted data).
-    Space Complexity: O(1) auxiliary space (in-place on copy).
-    
-    Builds the sorted array one item at a time by picking the next element
-    and shifting larger elements one position to the right to insert it.
+    Theoretical Time Complexity: O(n^2) worst/average, O(n) best case.
     """
     start_time = time.perf_counter()
     arr = [str(x).strip().upper() for x in dataset]
@@ -1382,7 +918,7 @@ def insertion_sort(dataset: List[str]) -> Dict[str, Any]:
         "worst_case": "O(n²)",
         "is_correct": is_correct,
         "pass_logs": pass_logs,
-        "message": f"Insertion Sort completed in {comparisons} comparisons and {shifts} shifts. Correctness verified: {is_correct}."
+        "message": f"Insertion Sort completed in {comparisons} comparisons and {shifts} shifts. Correctness: {is_correct}."
     }
 
 
@@ -1392,16 +928,8 @@ def insertion_sort(dataset: List[str]) -> Dict[str, Any]:
 
 def build_traversal_tree(parents: Dict[str, Optional[str]], src: str, dst: Optional[str] = None) -> Dict[str, Any]:
     """
-    Constructs a genuine Traversal Spanning Tree from the parent relationships
-    recorded during BFS or DFS graph traversal.
-    
-    CO4 Properties Satisfied:
-    1. Exactly one root node: the source router 'src'.
-    2. Each reachable non-root router has exactly one parent in the tree.
-    3. Traversal tree is strictly acyclic (no cycles) even if the network graph has cycles.
-    4. Unreachable vertices are completely excluded from the tree.
-    5. Tree edges represent the exact discovery transitions during traversal.
-    6. Reconstructs root-to-destination path along tree edges.
+    Constructs a genuine Traversal Spanning Tree from parent relationships
+    recorded during graph traversal.
     """
     src_clean = str(src).strip().upper()
     dst_clean = str(dst).strip().upper() if dst else None
@@ -1472,5 +1000,3 @@ def build_traversal_tree(parents: Dict[str, Optional[str]], src: str, dst: Optio
         "max_depth": max(levels.values()) if levels else 0,
         "message": f"Constructed traversal tree with root '{src_clean}', {len(nodes_list)} nodes, and {len(edges)} tree edges."
     }
-
-
