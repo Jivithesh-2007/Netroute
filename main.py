@@ -5,10 +5,10 @@ A clean, modern, educational network packet routing simulator.
 Integrated Course Outcomes:
 - CO3: Searching and Sorting Algorithm Evaluation (Linear vs. Binary Search, Bubble vs. Insertion Sort).
 - CO4: Routing Traversal Tree Structures (BFS Traversal Spanning Tree and Invariants).
-- CO5: Graph-Based Packet Routing vs. Traditional Hop-by-Hop Routing Table Forwarding.
+- CO5: Traditional Table-Based Forwarding vs. Graph Traversal Routing.
 """
 
-from typing import Dict, Any, List, Set, Tuple
+from typing import Dict, Any, List, Set, Tuple, Optional
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -17,7 +17,7 @@ from theme import (
     CUSTOM_CSS, render_path_pills, render_step_card,
     PRIMARY, PRIMARY_DARK, CYAN, PURPLE, SUCCESS, WARNING, ERROR, TEXT_MAIN, TEXT_MUTED, BORDER
 )
-from network import Graph
+from network import Graph, validate_router_id
 from algorithms import (
     bfs, dfs, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree
 )
@@ -38,17 +38,48 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 sim.init_session()
 graph: Graph = st.session_state["graph"]
 
-# Initial auto-run so dashboard is populated on launch
-if st.session_state.get("sim_res") is None:
-    src_init = st.session_state.get("source_id", "N1")
-    dst_init = st.session_state.get("dest_id", "N7")
-    if src_init in graph.routers and dst_init in graph.routers:
-        res_init = sim.execute_routing(graph, st.session_state.get("selected_algo", "BFS (Breadth-First)"), src_init, dst_init)
-        if res_init.get("steps"):
-            st.session_state["step_idx"] = len(res_init["steps"]) - 1
 
 # -------------------------------------------------------------
-# 2. PLOTLY GRAPH & TREE VISUALIZATIONS
+# 2. ADAPTIVE TOPOLOGY DATASET HELPER (CO3)
+# -------------------------------------------------------------
+def get_adaptive_datasets(graph: Graph) -> Tuple[List[str], List[str]]:
+    """
+    Derives sorted and authentically unsorted router datasets dynamically
+    from whatever topology is currently active in the graph.
+    Zero hardcoded nodes.
+    """
+    nodes = sorted(list(graph.routers.keys()))
+    if not nodes:
+        return [], []
+
+    n = len(nodes)
+    if n <= 2:
+        unsorted_list = list(reversed(nodes))
+    else:
+        # Deterministic interleaving from mid, start, and end to create an authentic unsorted list
+        indices = []
+        left, right = 0, n - 1
+        mid = n // 2
+        indices.append(mid)
+        visited_idx = {mid}
+        while len(indices) < n:
+            if left not in visited_idx:
+                indices.append(left)
+                visited_idx.add(left)
+            left += 1
+            if right not in visited_idx and len(indices) < n:
+                indices.append(right)
+                visited_idx.add(right)
+            right -= 1
+        unsorted_list = [nodes[i] for i in indices]
+        if unsorted_list == nodes and n > 1:
+            unsorted_list[0], unsorted_list[-1] = unsorted_list[-1], unsorted_list[0]
+
+    return unsorted_list, nodes
+
+
+# -------------------------------------------------------------
+# 3. PLOTLY GRAPH & TREE VISUALIZATIONS
 # -------------------------------------------------------------
 def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_id: str, height: int = 420) -> go.Figure:
     """Renders an interactive network graph with real-time traversal and packet animations."""
@@ -372,14 +403,14 @@ def build_traversal_tree_figure(tree_data: Dict[str, Any], src_id: str, dst_id: 
 
 
 # -------------------------------------------------------------
-# 3. STREAMLIT SIDEBAR
+# 4. STREAMLIT SIDEBAR
 # -------------------------------------------------------------
 st.sidebar.title("NetRoute")
 st.sidebar.markdown("*Network Packet Routing Simulator*")
-st.sidebar.caption("Graph-based routing algorithms (BFS & DFS) and routing-table-based forwarding.")
+st.sidebar.caption("Graph-based routing algorithms (BFS & DFS) with interactive CO3 and CO4 evaluation.")
 st.sidebar.markdown("---")
 
-# Section 1: Network Topology
+# Section 1: Network Topology Selector
 st.sidebar.subheader("Network Topology")
 preset_options = {
     "reference": "Reference 7-Node WAN",
@@ -400,25 +431,17 @@ selected_preset_key = st.sidebar.selectbox(
     key="topology_selectbox"
 )
 
-# Handle Topology Change
+# Handle Topology Change: load real graph data, reset all old results
 if selected_preset_key != st.session_state.get("selected_preset"):
     st.session_state["selected_preset"] = selected_preset_key
     st.session_state["graph"] = Graph.from_preset(selected_preset_key)
     graph = st.session_state["graph"]
-    
+
     g_nodes = sorted(list(graph.routers.keys()))
     st.session_state["source_id"] = g_nodes[0] if g_nodes else "N1"
     st.session_state["dest_id"] = g_nodes[-1] if g_nodes else "N7"
-    
+
     sim.invalidate_simulation()
-    sim.execute_routing(
-        graph,
-        st.session_state.get("selected_algo", "BFS (Breadth-First)"),
-        st.session_state["source_id"],
-        st.session_state["dest_id"]
-    )
-    if st.session_state.get("sim_res", {}).get("steps"):
-        st.session_state["step_idx"] = len(st.session_state["sim_res"]["steps"]) - 1
     st.rerun()
 
 graph = st.session_state["graph"]
@@ -439,13 +462,19 @@ dst_idx = router_keys.index(st.session_state["dest_id"]) if st.session_state["de
 selected_src = st.sidebar.selectbox("Source Router", options=router_keys, index=src_idx, key="src_select")
 selected_dst = st.sidebar.selectbox("Destination Router", options=router_keys, index=dst_idx, key="dst_select")
 
-st.session_state["source_id"] = selected_src
-st.session_state["dest_id"] = selected_dst
+# Invalidate previous routing if endpoints changed
+if selected_src != st.session_state.get("source_id") or selected_dst != st.session_state.get("dest_id"):
+    st.session_state["source_id"] = selected_src
+    st.session_state["dest_id"] = selected_dst
+    sim.invalidate_simulation()
 
 algo_options = ["BFS (Breadth-First)", "DFS (Depth-First)"]
 algo_idx = 0 if "BFS" in st.session_state.get("selected_algo", "BFS") else 1
 selected_algo = st.sidebar.selectbox("Algorithm", options=algo_options, index=algo_idx, key="algo_select")
-st.session_state["selected_algo"] = selected_algo
+
+if selected_algo != st.session_state.get("selected_algo"):
+    st.session_state["selected_algo"] = selected_algo
+    sim.invalidate_simulation()
 
 btn_col1, btn_col2 = st.sidebar.columns(2)
 with btn_col1:
@@ -466,18 +495,59 @@ info_c1.metric("Routers", len(graph.routers))
 info_c2.metric("Connections", len(graph.get_edges()))
 st.sidebar.caption(f"Topology: **{preset_options.get(st.session_state.get('selected_preset', 'reference'))}**")
 
+with st.sidebar.expander("🛠️ Quick Router Management", expanded=False):
+    sb_c1, sb_c2 = st.columns([1.5, 1])
+    sb_new_id = sb_c1.text_input("Router ID", placeholder="e.g. N8", max_chars=8, key="sb_add_rid").strip().upper()
+    with sb_c2:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        sb_add_btn = st.button("➕ Add", use_container_width=True, key="sb_btn_add")
+
+    if sb_add_btn:
+        ok, msg = validate_router_id(sb_new_id)
+        if not ok:
+            st.sidebar.error(f"Invalid ID: {msg}")
+        elif sb_new_id in graph.routers:
+            st.sidebar.error(f"Router '{sb_new_id}' already exists.")
+        else:
+            ex_xs = [r.x for r in graph.routers.values()] if graph.routers else [200.0]
+            graph.add_router(sb_new_id, name=f"Router {sb_new_id}", x=max(ex_xs) + 80.0, y=220.0)
+            sim.invalidate_simulation()
+            st.sidebar.success(f"Added Router {sb_new_id}")
+            st.rerun()
+
+    if len(router_keys) > 2:
+        sb_del_c1, sb_del_c2 = st.columns([1.5, 1])
+        sb_del_r = sb_del_c1.selectbox("Delete Router", options=["-- Select --"] + router_keys, key="sb_del_r_select")
+        with sb_del_c2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            sb_del_btn = st.button("🗑️ Del", use_container_width=True, key="sb_btn_del")
+
+        if sb_del_btn and sb_del_r != "-- Select --":
+            rem = [r for r in router_keys if r != sb_del_r]
+            if st.session_state.get("source_id") == sb_del_r:
+                st.session_state["source_id"] = rem[0]
+            if st.session_state.get("dest_id") == sb_del_r:
+                st.session_state["dest_id"] = rem[-1]
+            for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+                if state_key in st.session_state and st.session_state[state_key] == sb_del_r:
+                    del st.session_state[state_key]
+            graph.remove_router(sb_del_r)
+            sim.invalidate_simulation()
+            st.sidebar.success(f"Deleted Router {sb_del_r}")
+            st.rerun()
+
 
 # -------------------------------------------------------------
-# 4. MAIN PAGE CONTENT & TABS
+# 5. MAIN PAGE LAYOUT & TABS
 # -------------------------------------------------------------
 st.title("NetRoute — Network Packet Routing")
-st.markdown("*Interactive Network Packet Routing Simulator demonstrating BFS, DFS, Traversal Trees, and Next-Hop Forwarding.*")
+st.markdown("*Interactive Network Packet Routing Simulator demonstrating BFS, DFS, and Traversal Trees.*")
 
 tab_routing, tab_co3, tab_co4, tab_co5 = st.tabs([
     "Network Routing",
-    "CO3: Search & Sort",
-    "CO4: Traversal Tree",
-    "CO5: Routing Table"
+    "CO3: Searching & Sorting",
+    "CO4: Routing Traversal Tree",
+    "CO5: Routing Table Forwarding"
 ])
 
 # =============================================================
@@ -489,8 +559,8 @@ with tab_routing:
     current_step = active_state.get("step")
     is_completed = active_state.get("is_completed", False)
 
-    # Main Network Graph
-    fig = build_network_figure(graph, active_state, st.session_state["source_id"], st.session_state["dest_id"], height=440)
+    # Main Network Graph Canvas
+    fig = build_network_figure(graph, active_state, st.session_state["source_id"], st.session_state["dest_id"], height=420)
     st.plotly_chart(fig, use_container_width=True)
 
     # Legend
@@ -506,210 +576,589 @@ with tab_routing:
         unsafe_allow_html=True
     )
 
-    # Traversal Playback Bar
-    ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5, ctrl_c6 = st.columns([1, 1, 1, 1, 1.6, 1.2])
-    with ctrl_c1:
-        if st.button("⏮ First", use_container_width=True):
-            sim.first_step()
-            st.rerun()
-    with ctrl_c2:
-        if st.button("◀ Prev", use_container_width=True):
-            sim.step_backward()
-            st.rerun()
-    with ctrl_c3:
-        if st.button("Next ▶", use_container_width=True):
-            sim.step_forward()
-            st.rerun()
-    with ctrl_c4:
-        if st.button("⏭ Last", use_container_width=True):
-            sim.last_step()
-            st.rerun()
-    with ctrl_c5:
-        if st.button("🚀 Transmit Packet", type="primary", use_container_width=True):
-            sim.packet_step_forward()
-            st.rerun()
-    with ctrl_c6:
-        if st.button("🔄 Reset Pkt", use_container_width=True):
-            sim.reset_packet()
-            st.rerun()
+    if not sim_res:
+        st.info("Select your options in the sidebar and click **Run Routing** to execute the algorithm and view traversal results.")
+    else:
+        # Traversal Playback Bar
+        ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5, ctrl_c6 = st.columns([1, 1, 1, 1, 1.6, 1.2])
+        with ctrl_c1:
+            if st.button("⏮ First", use_container_width=True):
+                sim.first_step()
+                st.rerun()
+        with ctrl_c2:
+            if st.button("◀ Prev", use_container_width=True):
+                sim.step_backward()
+                st.rerun()
+        with ctrl_c3:
+            if st.button("Next ▶", use_container_width=True):
+                sim.step_forward()
+                st.rerun()
+        with ctrl_c4:
+            if st.button("⏭ Last", use_container_width=True):
+                sim.last_step()
+                st.rerun()
+        with ctrl_c5:
+            if st.button("🚀 Transmit Packet", type="primary", use_container_width=True):
+                sim.packet_step_forward()
+                st.rerun()
+        with ctrl_c6:
+            if st.button("🔄 Reset Pkt", use_container_width=True):
+                sim.reset_packet()
+                st.rerun()
 
-    # Step slider if steps exist
-    if sim_res and sim_res.get("steps"):
-        total_steps = len(sim_res["steps"])
-        curr_idx = st.session_state.get("step_idx", 0)
-        new_step = st.slider(
-            "Traversal Step",
-            min_value=1,
-            max_value=total_steps,
-            value=curr_idx + 1,
-            format="Step %d"
-        )
-        if new_step - 1 != curr_idx:
-            sim.jump_to_step(new_step - 1)
-            st.rerun()
+        # Step slider if steps exist
+        if sim_res.get("steps"):
+            total_steps = len(sim_res["steps"])
+            curr_idx = st.session_state.get("step_idx", 0)
+            new_step = st.slider(
+                "Traversal Step Navigation",
+                min_value=1,
+                max_value=total_steps,
+                value=curr_idx + 1,
+                format="Step %d"
+            )
+            if new_step - 1 != curr_idx:
+                sim.jump_to_step(new_step - 1)
+                st.rerun()
 
-    # Results & Status Bar
-    st.write("")
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-
-    with m_col1:
-        st.markdown(
-            f'<div class="metric-card">'
-            f'<div class="metric-card-label">Algorithm</div>'
-            f'<div class="metric-card-val" style="font-size:1.1rem; color:#2563EB;">{st.session_state.get("selected_algo")}</div>'
-            f'</div>', unsafe_allow_html=True
-        )
-
-    with m_col2:
-        status_text = "Route Discovered" if sim_res and sim_res.get("success") else ("No Route Found" if sim_res else "Ready")
-        status_color = "#10B981" if sim_res and sim_res.get("success") else ("#EF4444" if sim_res else "#475569")
-        st.markdown(
-            f'<div class="metric-card">'
-            f'<div class="metric-card-label">Routing Status</div>'
-            f'<div class="metric-card-val" style="font-size:1.1rem; color:{status_color};">{status_text}</div>'
-            f'</div>', unsafe_allow_html=True
-        )
-
-    with m_col3:
-        hops_val = str(sim_res.get("hops", 0)) if sim_res and sim_res.get("success") else "—"
-        st.markdown(
-            f'<div class="metric-card">'
-            f'<div class="metric-card-label">Total Hops</div>'
-            f'<div class="metric-card-val">{hops_val}</div>'
-            f'</div>', unsafe_allow_html=True
-        )
-
-    with m_col4:
-        visited_count = len(sim_res.get("visited", [])) if sim_res else 0
-        st.markdown(
-            f'<div class="metric-card">'
-            f'<div class="metric-card-label">Routers Visited</div>'
-            f'<div class="metric-card-val">{visited_count}</div>'
-            f'</div>', unsafe_allow_html=True
-        )
-
-    # Discovered Path
-    st.write("")
-    if sim_res and sim_res.get("success"):
-        st.markdown("##### Discovered Route")
-        st.markdown(render_path_pills(sim_res.get("path", [])), unsafe_allow_html=True)
-    elif sim_res and not sim_res.get("success"):
-        st.error(f"Destination router '{st.session_state['dest_id']}' is UNREACHABLE from '{st.session_state['source_id']}' in this topology.")
-
-    # Packet Transmission Status
-    if active_state.get("packet_status"):
-        st.info(f"**Packet Transmission:** {active_state['packet_status']}")
-
-    # Traversal Log Card
-    if current_step:
+        # Results & Status Bar
         st.write("")
-        st.markdown("##### Current Traversal State")
-        struct_name = "FIFO Queue" if "BFS" in st.session_state.get("selected_algo", "BFS") else "LIFO Stack"
-        struct_items = current_step.get("structure", [])
-        struct_display = f"{struct_name}: {struct_items}" if struct_items else f"{struct_name}: (empty)"
-        desc = current_step.get("description", "")
-        op = current_step.get("operation", "STEP")
-        step_num = current_step.get("step", 1)
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
 
-        st.markdown(render_step_card(step_num, f"{op} — {struct_display}", desc), unsafe_allow_html=True)
+        with m_col1:
+            st.markdown(
+                f'<div class="metric-card">'
+                f'<div class="metric-card-label">Algorithm</div>'
+                f'<div class="metric-card-val" style="font-size:1.1rem; color:#2563EB;">{st.session_state.get("selected_algo")}</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        with m_col2:
+            status_text = "Route Discovered" if sim_res.get("success") else "No Route Found"
+            status_color = "#10B981" if sim_res.get("success") else "#EF4444"
+            st.markdown(
+                f'<div class="metric-card">'
+                f'<div class="metric-card-label">Routing Status</div>'
+                f'<div class="metric-card-val" style="font-size:1.1rem; color:{status_color};">{status_text}</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        with m_col3:
+            hops_val = str(sim_res.get("hops", 0)) if sim_res.get("success") else "—"
+            st.markdown(
+                f'<div class="metric-card">'
+                f'<div class="metric-card-label">Total Hops</div>'
+                f'<div class="metric-card-val">{hops_val}</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        with m_col4:
+            visited_count = len(sim_res.get("visited", []))
+            st.markdown(
+                f'<div class="metric-card">'
+                f'<div class="metric-card-label">Routers Visited</div>'
+                f'<div class="metric-card-val">{visited_count}</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        # Discovered Path
+        st.write("")
+        if sim_res.get("success"):
+            st.markdown("##### Discovered Route")
+            st.markdown(render_path_pills(sim_res.get("path", [])), unsafe_allow_html=True)
+        else:
+            st.error(f"Destination router '{st.session_state['dest_id']}' is UNREACHABLE from '{st.session_state['source_id']}' in this topology.")
+
+        # Packet Transmission Status
+        if active_state.get("packet_status"):
+            st.info(f"**Packet Transmission:** {active_state['packet_status']}")
+
+        # Traversal Log Card
+        if current_step:
+            st.write("")
+            st.markdown("##### Current Traversal State")
+            struct_name = "FIFO Queue" if "BFS" in st.session_state.get("selected_algo", "BFS") else "LIFO Stack"
+            struct_items = current_step.get("structure", [])
+            struct_display = f"{struct_name}: {struct_items}" if struct_items else f"{struct_name}: (empty)"
+            desc = current_step.get("description", "")
+            op = current_step.get("operation", "STEP")
+            step_num = current_step.get("step", 1)
+
+            st.markdown(render_step_card(step_num, f"{op} — {struct_display}", desc), unsafe_allow_html=True)
+
+    # Dynamic Network Topology Management (Add/Delete Nodes & Links, Hardware Faults)
+    st.write("")
+    with st.expander("🛠️ Dynamic Network Topology Editor (Add / Delete Routers & Links)", expanded=False):
+        st.caption("Dynamically modify network topology at runtime. All changes immediately synchronize with the graph visualizer, routing engine, and CO3/CO4/CO5 modules.")
+
+        te_col1, te_col2 = st.columns(2)
+
+        with te_col1:
+            st.markdown("##### 1. Router Management (Vertices)")
+
+            # Add Router
+            st.markdown("**Add New Router**")
+            ar_c1, ar_c2 = st.columns([1, 1.5])
+            new_rid = ar_c1.text_input("Router ID", placeholder="e.g. N8, R7", max_chars=8, key="te_new_rid").strip().upper()
+            new_rname = ar_c2.text_input("Router Label", placeholder="e.g. Gateway 2", key="te_new_rname").strip()
+
+            ar_c3, ar_c4 = st.columns([1.5, 1])
+            conn_target = ar_c3.selectbox(
+                "Connect to Router",
+                options=["-- Standalone (No Link) --"] + router_keys,
+                key="te_conn_target"
+            )
+            with ar_c4:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                add_btn = st.button("➕ Add Router", type="primary", use_container_width=True, key="te_btn_add_router")
+
+            if add_btn:
+                ok, msg = validate_router_id(new_rid)
+                if not ok:
+                    st.error(f"Invalid Router ID: {msg}")
+                elif new_rid in graph.routers:
+                    st.error(f"Router '{new_rid}' already exists in topology.")
+                else:
+                    # Determine layout position
+                    if conn_target != "-- Standalone (No Link) --" and conn_target in graph.routers:
+                        target_r = graph.routers[conn_target]
+                        new_x = target_r.x + 90.0
+                        new_y = target_r.y + 40.0
+                    else:
+                        existing_xs = [r.x for r in graph.routers.values()] if graph.routers else [200.0]
+                        new_x = max(existing_xs) + 90.0
+                        new_y = 220.0
+                        if new_x > 750.0:
+                            new_x = 180.0
+                            new_y = 350.0
+
+                    graph.add_router(new_rid, name=new_rname or f"Router {new_rid}", x=new_x, y=new_y)
+                    if conn_target != "-- Standalone (No Link) --" and conn_target in graph.routers:
+                        graph.add_connection(new_rid, conn_target, weight=1.0)
+
+                    sim.invalidate_simulation()
+                    st.success(f"Added Router '{new_rid}'{' connected to ' + conn_target if conn_target != '-- Standalone (No Link) --' else ''}.")
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Delete Router
+            st.markdown("**Delete Existing Router**")
+            del_c1, del_c2 = st.columns([1.8, 1])
+            del_target = del_c1.selectbox("Select Router to Delete", options=["-- Select --"] + router_keys, key="te_del_target")
+            with del_c2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                del_btn = st.button("🗑️ Delete", use_container_width=True, key="te_btn_del_router")
+
+            if del_btn:
+                if del_target == "-- Select --":
+                    st.warning("Please select a router to delete.")
+                elif len(router_keys) <= 2:
+                    st.error("Cannot delete router: minimum of 2 routers required for network routing.")
+                else:
+                    # Clean up session state references to the deleted router
+                    remaining_nodes = [r for r in router_keys if r != del_target]
+                    if st.session_state.get("source_id") == del_target:
+                        st.session_state["source_id"] = remaining_nodes[0]
+                    if st.session_state.get("dest_id") == del_target:
+                        st.session_state["dest_id"] = remaining_nodes[-1]
+
+                    for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+                        if state_key in st.session_state and st.session_state[state_key] == del_target:
+                            del st.session_state[state_key]
+
+                    graph.remove_router(del_target)
+                    sim.invalidate_simulation()
+                    st.success(f"Deleted Router '{del_target}' and cascaded removal of all its incident links.")
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Hardware Fault (Power Toggle)
+            st.markdown("**Hardware Fault Simulation (Online / Offline)**")
+            flt_c1, flt_c2 = st.columns([1.8, 1])
+            flt_target = flt_c1.selectbox("Select Router", options=router_keys, key="te_flt_target")
+            with flt_c2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                flt_btn = st.button("⚡ Toggle Power", use_container_width=True, key="te_btn_flt_toggle")
+
+            if flt_target and flt_target in graph.routers:
+                r_state = "Online (Operational)" if graph.routers[flt_target].is_online else "Offline (Fault Injected)"
+                st.caption(f"Current Status: **{r_state}**")
+
+            if flt_btn and flt_target in graph.routers:
+                new_state = graph.toggle_router_status(flt_target)
+                sim.invalidate_simulation()
+                st.info(f"Router '{flt_target}' is now {'Online' if new_state else 'Offline'}.")
+                st.rerun()
+
+        with te_col2:
+            st.markdown("##### 2. Transmission Link Management (Edges)")
+
+            # Add Link
+            st.markdown("**Add Connection / Link**")
+            lk_c1, lk_c2, lk_c3 = st.columns([1.2, 1.2, 1])
+            u_node = lk_c1.selectbox("Endpoint A", options=router_keys, key="te_lk_u")
+            v_options = [r for r in router_keys if r != u_node]
+            v_node = lk_c2.selectbox("Endpoint B", options=v_options if v_options else ["None"], key="te_lk_v")
+            weight_val = lk_c3.number_input("Cost", min_value=1.0, max_value=50.0, value=1.0, step=1.0, key="te_lk_weight")
+
+            if st.button("🔗 Add Transmission Link", use_container_width=True, key="te_btn_add_link"):
+                if not v_options or v_node == "None":
+                    st.warning("Please choose two different routers.")
+                elif graph.add_connection(u_node, v_node, weight=float(weight_val)):
+                    sim.invalidate_simulation()
+                    st.success(f"Created link: {u_node} ➔ {v_node} (Cost: {weight_val})")
+                    st.rerun()
+                else:
+                    st.warning(f"Connection between '{u_node}' and '{v_node}' already exists or is invalid.")
+
+            st.markdown("---")
+
+            # Remove Link
+            st.markdown("**Remove Transmission Link**")
+            all_active_edges = [f"{u} <-> {v}" for (u, v) in graph.get_edges()]
+            rm_c1, rm_c2 = st.columns([1.8, 1])
+            edge_to_rm = rm_c1.selectbox(
+                "Select Link to Remove",
+                options=["-- Select --"] + all_active_edges if all_active_edges else ["No Links"],
+                key="te_rm_edge"
+            )
+            with rm_c2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                rm_link_btn = st.button("✂️ Remove Link", use_container_width=True, key="te_btn_rm_link")
+
+            if rm_link_btn:
+                if edge_to_rm in ("-- Select --", "No Links"):
+                    st.warning("Please select an active link to remove.")
+                else:
+                    u_rm, v_rm = [x.strip() for x in edge_to_rm.split("<->")]
+                    graph.remove_connection(u_rm, v_rm)
+                    sim.invalidate_simulation()
+                    st.success(f"Removed link: {edge_to_rm}")
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Layout & Preset Reset
+            st.markdown("**Layout & Topology Reset**")
+            lay_c1, lay_c2 = st.columns(2)
+            with lay_c1:
+                if st.button("🔄 Auto-Arrange (Circle)", use_container_width=True, key="te_btn_auto_layout"):
+                    graph.auto_layout()
+                    st.success("Re-arranged routers into a balanced circular layout.")
+                    st.rerun()
+            with lay_c2:
+                if st.button("⏮ Restore Preset", use_container_width=True, key="te_btn_restore_preset"):
+                    curr_p = st.session_state.get("selected_preset", "reference")
+                    st.session_state["graph"] = Graph.from_preset(curr_p)
+                    for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+                        st.session_state.pop(state_key, None)
+                    sim.invalidate_simulation()
+                    st.success(f"Restored original '{curr_p}' topology.")
+                    st.rerun()
 
 
 # =============================================================
-# TAB 2: CO3 SEARCH & SORT
+# TAB 2: CO3 SEARCHING & SORTING (REAL INTERACTIVE EXECUTION)
 # =============================================================
 with tab_co3:
     st.markdown("### CO3 — Searching and Sorting Algorithm Evaluation")
-    st.caption("Demonstrating Linear Search, Binary Search, Bubble Sort, and Insertion Sort using network router data.")
 
-    # Dataset setup
-    dataset_source = sorted(list(graph.routers.keys()))
-    if len(dataset_source) < 5:
-        dataset_source = ["N1", "N2", "N3", "N4", "N5", "N6", "N7"]
-
-    unsorted_sample = ["N4", "N1", "N7", "N2", "N6", "N3", "N5"]
-    sorted_sample = sorted(unsorted_sample)
+    # Adaptively derive datasets from the currently selected topology
+    unsorted_nodes, sorted_nodes = get_adaptive_datasets(graph)
+    active_topo_name = preset_options.get(st.session_state.get("selected_preset", "reference"))
+    st.caption(f"Dynamically derived from active topology **{active_topo_name}** ({len(sorted_nodes)} routers).")
 
     co3_subtab1, co3_subtab2 = st.tabs(["Searching Evaluation (Linear vs. Binary)", "Sorting Evaluation (Bubble vs. Insertion)"])
 
     # --- Subtab 1: Searching ---
     with co3_subtab1:
-        st.markdown("#### Searching Evaluation")
+        st.markdown("#### Interactive Searching Evaluation")
+
+        # Dynamic target options from active topology + absent test node
+        absent_target_demo = f"{sorted_nodes[0]}_ABSENT" if sorted_nodes else "X99"
+        search_target_options = sorted_nodes + [absent_target_demo]
+
+        default_target_idx = 0
+        if st.session_state.get("dest_id") in search_target_options:
+            default_target_idx = search_target_options.index(st.session_state["dest_id"])
+        elif len(sorted_nodes) > 1:
+            default_target_idx = len(sorted_nodes) // 2
+
         s_c1, s_c2 = st.columns([3, 1])
         with s_c1:
-            target_router = st.selectbox("Select Target Router to Search", options=sorted_sample + ["N99"], index=1)
+            target_router = st.selectbox(
+                "Select Target Router to Search",
+                options=search_target_options,
+                index=default_target_idx,
+                key="co3_target_router_sel"
+            )
         with s_c2:
             st.write("")
             st.write("")
-            run_search_btn = st.button("Execute Search", type="primary", use_container_width=True)
+            if st.button("Execute Search", type="primary", use_container_width=True):
+                # Run actual algorithms on current topology data
+                res_lin = linear_search(unsorted_nodes, target_router)
+                res_bin = binary_search(sorted_nodes, target_router, verify_sorted=True)
+                st.session_state["search_res"] = {
+                    "linear": res_lin,
+                    "binary": res_bin,
+                    "target": target_router,
+                    "unsorted": unsorted_nodes,
+                    "sorted": sorted_nodes
+                }
+                st.session_state["search_step_idx"] = 0
+                st.rerun()
 
-        res_linear = linear_search(unsorted_sample, target_router)
-        res_binary = binary_search(sorted_sample, target_router, verify_sorted=True)
+        search_data = st.session_state.get("search_res")
 
-        col_lin, col_bin = st.columns(2)
-        with col_lin:
-            st.markdown("##### Linear Search")
-            st.markdown(f"**Input Dataset (Unsorted):** `{unsorted_sample}`")
-            st.markdown(f"**Target:** `{target_router}`")
-            st.markdown(f"**Status:** {'Found at index ' + str(res_linear['index']) if res_linear['found'] else 'Not Found (-1)'}")
-            st.markdown(f"**Comparisons:** `{res_linear['comparisons']}`")
-            st.markdown(f"**Theoretical Complexity:** $O(n)$")
-            st.markdown(f"**Requires Sorted Data:** No")
+        if not search_data:
+            st.info("Select a target router and click **Execute Search** to run Linear and Binary Search on the current topology.")
+        else:
+            res_lin = search_data["linear"]
+            res_bin = search_data["binary"]
+            cur_target = search_data["target"]
+            u_data = search_data["unsorted"]
+            s_data = search_data["sorted"]
 
-        with col_bin:
-            st.markdown("##### Binary Search")
-            st.markdown(f"**Input Dataset (Sorted):** `{sorted_sample}`")
-            st.markdown(f"**Target:** `{target_router}`")
-            st.markdown(f"**Status:** {'Found at index ' + str(res_binary['index']) if res_binary['found'] else 'Not Found (-1)'}")
-            st.markdown(f"**Comparisons:** `{res_binary['comparisons']}`")
-            st.markdown(f"**Theoretical Complexity:** $O(\\log n)$")
-            st.markdown(f"**Requires Sorted Data:** Yes (Verified)")
+            st.write("")
+            st.markdown("##### Step-by-Step Search Visualization")
 
-        st.write("")
-        st.markdown("##### Complexity Comparison")
-        comp_df = pd.DataFrame([
-            {"Algorithm": "Linear Search", "Best Case": "O(1)", "Average Case": "O(n)", "Worst Case": "O(n)", "Space": "O(1)", "Condition": "Unsorted or Sorted"},
-            {"Algorithm": "Binary Search", "Best Case": "O(1)", "Average Case": "O(log n)", "Worst Case": "O(log n)", "Space": "O(1)", "Condition": "Strictly Sorted"}
-        ])
-        st.dataframe(comp_df, hide_index=True, use_container_width=True)
+            # Playback controls for search steps
+            lin_steps = res_lin.get("steps", [])
+            bin_steps = res_bin.get("steps", [])
+            max_search_steps = max(len(lin_steps), len(bin_steps))
+
+            s_step = st.session_state.get("search_step_idx", 0)
+
+            c_step1, c_step2, c_step3, c_step4 = st.columns([1, 1, 1, 1])
+            with c_step1:
+                if st.button("⏮ Start", key="s_btn_start"):
+                    st.session_state["search_step_idx"] = 0
+                    st.rerun()
+            with c_step2:
+                if st.button("◀ Prev Step", key="s_btn_prev") and s_step > 0:
+                    st.session_state["search_step_idx"] = s_step - 1
+                    st.rerun()
+            with c_step3:
+                if st.button("Next Step ▶", key="s_btn_next") and s_step < max_search_steps - 1:
+                    st.session_state["search_step_idx"] = s_step + 1
+                    st.rerun()
+            with c_step4:
+                if st.button("⏭ End", key="s_btn_end"):
+                    st.session_state["search_step_idx"] = max(0, max_search_steps - 1)
+                    st.rerun()
+
+            st.caption(f"Inspection Step **{s_step + 1}** of **{max_search_steps}** (Target: **{cur_target}**)")
+
+            # Side-by-side array visualizations
+            vis_col1, vis_col2 = st.columns(2)
+
+            with vis_col1:
+                st.markdown("###### Linear Search Array (Unsorted)")
+                cur_lin_step = lin_steps[min(s_step, len(lin_steps) - 1)] if lin_steps else None
+                cur_lin_idx = cur_lin_step.get("index", -1) if cur_lin_step else -1
+                cur_lin_match = cur_lin_step.get("matched", False) if cur_lin_step else False
+
+                html_cells = []
+                for idx, val in enumerate(u_data):
+                    if idx == cur_lin_idx:
+                        cls = "search-cell-box-match" if cur_lin_match else "search-cell-box-active"
+                    elif idx < cur_lin_idx:
+                        cls = "search-cell-box-checked"
+                    else:
+                        cls = ""
+                    html_cells.append(
+                        f'<div class="search-cell">'
+                        f'<span class="search-cell-idx">[{idx}]</span>'
+                        f'<div class="search-cell-box {cls}">{val}</div>'
+                        f'</div>'
+                    )
+                st.markdown(f'<div class="search-array-container">{"".join(html_cells)}</div>', unsafe_allow_html=True)
+                if cur_lin_step:
+                    st.caption(cur_lin_step.get("description", ""))
+
+            with vis_col2:
+                st.markdown("###### Binary Search Array (Sorted)")
+                cur_bin_step = bin_steps[min(s_step, len(bin_steps) - 1)] if bin_steps else None
+                b_low = cur_bin_step.get("low", 0) if cur_bin_step else 0
+                b_high = cur_bin_step.get("high", len(s_data) - 1) if cur_bin_step else len(s_data) - 1
+                b_mid = cur_bin_step.get("mid", -1) if cur_bin_step else -1
+                b_match = (cur_bin_step.get("action") == "MATCH") if cur_bin_step else False
+
+                html_b_cells = []
+                for idx, val in enumerate(s_data):
+                    pointer_labels = []
+                    if idx == b_low:
+                        pointer_labels.append('<span style="color:#2563EB;">L</span>')
+                    if idx == b_mid:
+                        pointer_labels.append('<span style="color:#D97706;">M</span>')
+                    if idx == b_high:
+                        pointer_labels.append('<span style="color:#7C3AED;">H</span>')
+
+                    pointer_html = f'<div class="search-cell-pointer">{" ".join(pointer_labels)}</div>'
+
+                    if idx == b_mid:
+                        cls = "search-cell-box-match" if b_match else "search-cell-box-active"
+                    elif b_low <= idx <= b_high:
+                        cls = ""
+                    else:
+                        cls = "search-cell-box-dim"
+
+                    html_b_cells.append(
+                        f'<div class="search-cell">'
+                        f'<span class="search-cell-idx">[{idx}]</span>'
+                        f'<div class="search-cell-box {cls}">{val}</div>'
+                        f'{pointer_html}'
+                        f'</div>'
+                    )
+                st.markdown(f'<div class="search-array-container">{"".join(html_b_cells)}</div>', unsafe_allow_html=True)
+                if cur_bin_step:
+                    st.caption(cur_bin_step.get("description", ""))
+
+            # Execution Results Summary
+            st.write("")
+            st.markdown("##### Executed Algorithm Results")
+            res_c1, res_c2 = st.columns(2)
+
+            with res_c1:
+                st.markdown(
+                    f'<div class="metric-card" style="border-top:3px solid #2563EB;">'
+                    f'<div class="metric-card-label">Linear Search Result</div>'
+                    f'<div style="font-size:0.95rem; margin-top:6px;"><b>Target:</b> {cur_target}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Status:</b> {"Found at index " + str(res_lin["index"]) if res_lin["found"] else "Not Found (-1)"}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Actual Comparisons:</b> <span style="color:#2563EB; font-weight:700;">{res_lin["comparisons"]}</span></div>'
+                    f'<div style="font-size:0.95rem;"><b>Total Steps:</b> {len(lin_steps)}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Theoretical Complexity:</b> O(n)</div>'
+                    f'<div style="font-size:0.95rem;"><b>Requires Sorted Data:</b> No</div>'
+                    f'</div>', unsafe_allow_html=True
+                )
+
+            with res_c2:
+                st.markdown(
+                    f'<div class="metric-card" style="border-top:3px solid #7C3AED;">'
+                    f'<div class="metric-card-label">Binary Search Result</div>'
+                    f'<div style="font-size:0.95rem; margin-top:6px;"><b>Target:</b> {cur_target}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Status:</b> {"Found at sorted index " + str(res_bin["index"]) if res_bin["found"] else "Not Found (-1)"}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Actual Comparisons:</b> <span style="color:#7C3AED; font-weight:700;">{res_bin["comparisons"]}</span></div>'
+                    f'<div style="font-size:0.95rem;"><b>Total Steps:</b> {len(bin_steps)}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Theoretical Complexity:</b> O(log n)</div>'
+                    f'<div style="font-size:0.95rem;"><b>Requires Sorted Data:</b> Yes (Verified)</div>'
+                    f'</div>', unsafe_allow_html=True
+                )
+
+            st.caption(
+                "Note: Binary search index refers to the sorted copy. Linear search operates on the original unsorted dataset."
+            )
+
+            # Executed comparison table
+            st.write("")
+            st.markdown("##### Performance Comparison Table")
+            comp_table_data = [
+                {
+                    "Algorithm": "Linear Search",
+                    "Dataset Size (n)": len(u_data),
+                    "Result Correctness": "Verified",
+                    "Actual Comparisons": res_lin["comparisons"],
+                    "Search Steps": len(lin_steps),
+                    "Theoretical Time Complexity": "O(n)",
+                    "Data Precondition": "Unsorted or Sorted"
+                },
+                {
+                    "Algorithm": "Binary Search",
+                    "Dataset Size (n)": len(s_data),
+                    "Result Correctness": "Verified",
+                    "Actual Comparisons": res_bin["comparisons"],
+                    "Search Steps": len(bin_steps),
+                    "Theoretical Time Complexity": "O(log n)",
+                    "Data Precondition": "Strictly Sorted"
+                }
+            ]
+            st.dataframe(pd.DataFrame(comp_table_data), hide_index=True, use_container_width=True)
 
     # --- Subtab 2: Sorting ---
     with co3_subtab2:
-        st.markdown("#### Sorting Evaluation")
-        st.markdown(f"**Unsorted Router Array:** `{unsorted_sample}`")
+        st.markdown("#### Interactive Sorting Evaluation")
+        st.markdown(f"**Original Input Array (from {active_topo_name}):** `{unsorted_nodes}`")
 
-        res_bubble = bubble_sort(unsorted_sample)
-        res_insertion = insertion_sort(unsorted_sample)
+        if st.button("Execute Sorting", type="primary", key="btn_exec_sort"):
+            # Execute genuine sorting algorithms on copies
+            res_b = bubble_sort(unsorted_nodes)
+            res_i = insertion_sort(unsorted_nodes)
+            st.session_state["sort_res"] = {
+                "bubble": res_b,
+                "insertion": res_i,
+                "original": unsorted_nodes
+            }
+            st.rerun()
 
-        sort_c1, sort_c2 = st.columns(2)
-        with sort_c1:
-            st.markdown("##### Bubble Sort")
-            st.markdown(f"**Sorted Output:** `{res_bubble['sorted_data']}`")
-            st.markdown(f"**Comparisons:** `{res_bubble['comparisons']}`")
-            st.markdown(f"**Swaps:** `{res_bubble['swaps']}`")
-            st.markdown(f"**Passes Completed:** `{res_bubble['passes']}`")
-            st.markdown(f"**Correctness:** Verified `{res_bubble['is_correct']}`")
-            st.markdown(f"**Theoretical Complexity:** $O(n^2)$")
+        sort_data = st.session_state.get("sort_res")
 
-        with sort_c2:
-            st.markdown("##### Insertion Sort")
-            st.markdown(f"**Sorted Output:** `{res_insertion['sorted_data']}`")
-            st.markdown(f"**Comparisons:** `{res_insertion['comparisons']}`")
-            st.markdown(f"**Shifts:** `{res_insertion['shifts']}`")
-            st.markdown(f"**Iterations:** `{res_insertion['iterations']}`")
-            st.markdown(f"**Correctness:** Verified `{res_insertion['is_correct']}`")
-            st.markdown(f"**Theoretical Complexity:** $O(n^2)$")
+        if not sort_data:
+            st.info("Click **Execute Sorting** to run Bubble Sort and Insertion Sort on the active topology router array.")
+        else:
+            res_bubble = sort_data["bubble"]
+            res_insertion = sort_data["insertion"]
 
-        st.write("")
-        st.markdown("##### Sorting Complexity Reference")
-        sort_df = pd.DataFrame([
-            {"Algorithm": "Bubble Sort", "Best Case": "O(n)", "Average Case": "O(n²)", "Worst Case": "O(n²)", "Space": "O(1)", "Stable": "Yes"},
-            {"Algorithm": "Insertion Sort", "Best Case": "O(n)", "Average Case": "O(n²)", "Worst Case": "O(n²)", "Space": "O(1)", "Stable": "Yes"}
-        ])
-        st.dataframe(sort_df, hide_index=True, use_container_width=True)
+            st.write("")
+            sort_c1, sort_c2 = st.columns(2)
+
+            with sort_c1:
+                st.markdown(
+                    f'<div class="metric-card" style="border-top:3px solid #2563EB;">'
+                    f'<div class="metric-card-label">Bubble Sort Output</div>'
+                    f'<div style="font-size:0.95rem; margin-top:6px;"><b>Sorted Result:</b> <code>{res_bubble["sorted_data"]}</code></div>'
+                    f'<div style="font-size:0.95rem;"><b>Actual Comparisons:</b> <span style="color:#2563EB; font-weight:700;">{res_bubble["comparisons"]}</span></div>'
+                    f'<div style="font-size:0.95rem;"><b>Actual Swaps:</b> {res_bubble["swaps"]}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Passes (Early-Exit):</b> {res_bubble["passes"]}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Correctness Verified:</b> {res_bubble["is_correct"]}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Theoretical Complexity:</b> O(n²)</div>'
+                    f'</div>', unsafe_allow_html=True
+                )
+
+            with sort_c2:
+                st.markdown(
+                    f'<div class="metric-card" style="border-top:3px solid #7C3AED;">'
+                    f'<div class="metric-card-label">Insertion Sort Output</div>'
+                    f'<div style="font-size:0.95rem; margin-top:6px;"><b>Sorted Result:</b> <code>{res_insertion["sorted_data"]}</code></div>'
+                    f'<div style="font-size:0.95rem;"><b>Actual Comparisons:</b> <span style="color:#7C3AED; font-weight:700;">{res_insertion["comparisons"]}</span></div>'
+                    f'<div style="font-size:0.95rem;"><b>Actual Shifts:</b> {res_insertion["shifts"]}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Iterations:</b> {res_insertion["iterations"]}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Correctness Verified:</b> {res_insertion["is_correct"]}</div>'
+                    f'<div style="font-size:0.95rem;"><b>Theoretical Complexity:</b> O(n²)</div>'
+                    f'</div>', unsafe_allow_html=True
+                )
+
+            st.write("")
+            st.markdown("##### Sorting Operation Comparison Table")
+            sort_table_data = [
+                {
+                    "Algorithm": "Bubble Sort",
+                    "Input Size (n)": res_bubble["input_size"],
+                    "Actual Comparisons": res_bubble["comparisons"],
+                    "Swaps / Shifts": res_bubble["swaps"],
+                    "Outer Passes": res_bubble["passes"],
+                    "Theoretical Best Case": "O(n)",
+                    "Theoretical Worst Case": "O(n²)",
+                    "Correctness": "Verified"
+                },
+                {
+                    "Algorithm": "Insertion Sort",
+                    "Input Size (n)": res_insertion["input_size"],
+                    "Actual Comparisons": res_insertion["comparisons"],
+                    "Swaps / Shifts": res_insertion["shifts"],
+                    "Outer Passes": res_insertion["iterations"],
+                    "Theoretical Best Case": "O(n)",
+                    "Theoretical Worst Case": "O(n²)",
+                    "Correctness": "Verified"
+                }
+            ]
+            st.dataframe(pd.DataFrame(sort_table_data), hide_index=True, use_container_width=True)
 
 
 # =============================================================
-# TAB 3: CO4 TRAVERSAL TREE
+# TAB 3: CO4 ROUTING TRAVERSAL TREE (REAL TREE DATA)
 # =============================================================
 with tab_co4:
     st.markdown("### CO4 — Routing Traversal Tree Structures")
@@ -717,96 +1166,233 @@ with tab_co4:
 
     src_node = st.session_state.get("source_id", "N1")
     dst_node = st.session_state.get("dest_id", "N7")
+    sim_res = st.session_state.get("sim_res")
 
-    # Run BFS to obtain true parent pointers
-    bfs_res = bfs(graph, src_node, dst_node)
-    tree_data = build_traversal_tree(bfs_res.get("parents", {}), src_node, dst_node)
+    if not sim_res:
+        st.info("Click **Run Routing** in the sidebar to run BFS and generate the Traversal Spanning Tree.")
+    else:
+        # Generate tree strictly from the actual parents recorded during BFS
+        bfs_parents = sim_res.get("parents", {})
+        tree_data = build_traversal_tree(bfs_parents, src_node, dst_node)
 
-    # Invariants metrics
-    inv_c1, inv_c2, inv_c3, inv_c4 = st.columns(4)
-    inv_c1.metric("Tree Root", tree_data.get("root", "None"))
-    inv_c2.metric("Tree Vertices (V)", tree_data.get("node_count", 0))
-    inv_c3.metric("Tree Edges (E = V - 1)", tree_data.get("edge_count", 0))
-    inv_c4.metric("Strictly Acyclic", "Yes (0 Cycles)" if tree_data.get("is_acyclic") else "No")
+        # Invariants metrics
+        inv_c1, inv_c2, inv_c3, inv_c4 = st.columns(4)
+        inv_c1.metric("Tree Root", tree_data.get("root", "None"))
+        inv_c2.metric("Tree Vertices (V)", tree_data.get("node_count", 0))
+        inv_c3.metric("Tree Edges (E = V - 1)", tree_data.get("edge_count", 0))
+        inv_c4.metric("Strictly Acyclic", "Yes (0 Cycles)" if tree_data.get("is_acyclic") else "No")
 
-    # Tree Visualization
-    fig_tree = build_traversal_tree_figure(tree_data, src_node, dst_node, height=380)
-    st.plotly_chart(fig_tree, use_container_width=True)
+        # Tree Visualization
+        fig_tree = build_traversal_tree_figure(tree_data, src_node, dst_node, height=380)
+        st.plotly_chart(fig_tree, use_container_width=True)
 
-    # Parent-child table
-    st.markdown("##### Traversal Tree Node Hierarchy")
-    tree_records = []
-    levels = tree_data.get("levels", {})
-    parents_map = bfs_res.get("parents", {})
-    path_set = set(tree_data.get("path_to_dest", []))
+        # Parent-child table
+        st.markdown("##### Traversal Tree Node Hierarchy")
+        tree_records = []
+        levels = tree_data.get("levels", {})
+        path_set = set(tree_data.get("path_to_dest", []))
 
-    for node in tree_data.get("nodes", []):
-        parent_val = parents_map.get(node)
-        tree_records.append({
-            "Router": node,
-            "Parent Router": parent_val if parent_val else "(Root — No Parent)",
-            "Depth Level": levels.get(node, 0),
-            "On Path to Destination": "Yes" if node in path_set else "No"
-        })
+        for node in tree_data.get("nodes", []):
+            parent_val = bfs_parents.get(node)
+            tree_records.append({
+                "Router": node,
+                "Parent Router": parent_val if parent_val else "(Root — No Parent)",
+                "Depth Level": levels.get(node, 0),
+                "On Path to Destination": "Yes" if node in path_set else "No"
+            })
 
-    if tree_records:
-        st.dataframe(pd.DataFrame(tree_records), hide_index=True, use_container_width=True)
+        if tree_records:
+            st.dataframe(pd.DataFrame(tree_records), hide_index=True, use_container_width=True)
 
 
 # =============================================================
-# TAB 4: CO5 ROUTING TABLE
+# TAB 4: CO5 ROUTING TABLE FORWARDING & COMPARISON
 # =============================================================
 with tab_co5:
-    st.markdown("### CO5 — Graph-Based Routing vs. Traditional Routing Table Forwarding")
-    st.caption("Demonstrating the difference between on-demand graph search and next-hop forwarding tables.")
+    st.markdown("### CO5: Graph-Based Routing vs. Traditional Routing-Table Forwarding")
+    st.caption("Demonstrating hop-by-hop local routing table lookups vs. centralized graph traversal routing (BFS/DFS).")
 
-    src_fwd = st.session_state.get("source_id", "N1")
-    dst_fwd = st.session_state.get("dest_id", "N7")
+    active_preset = st.session_state.get("selected_preset", "reference")
+    all_routers = sorted(list(graph.routers.keys()))
+    default_src = st.session_state.get("source_id", all_routers[0] if all_routers else "N1")
+    default_dst = st.session_state.get("dest_id", all_routers[-1] if all_routers else "N7")
 
-    st.markdown(f"#### 1. Routing Table for Source Router `{src_fwd}`")
-    routing_table = graph.generate_routing_table(src_fwd)
-    df_table = pd.DataFrame(routing_table)
-    df_table.columns = ["Destination", "Next Hop", "Hop Count", "Status"]
-    st.dataframe(df_table, hide_index=True, use_container_width=True)
+    st.markdown("---")
 
-    st.write("")
-    st.markdown(f"#### 2. Hop-by-Hop Table Forwarding Simulation (`{src_fwd}` ➔ `{dst_fwd}`)")
+    # Section 1: Dynamic Local Routing Table Inspection
+    st.markdown("#### 1. Dynamic Router Forwarding Table (FIB)")
+    st.caption(
+        "In traditional IP networks, routers do not traverse a global graph. Instead, each router consults its local "
+        "Forwarding Information Base (FIB) to determine the immediate next hop for an incoming packet's destination."
+    )
 
-    # Execute genuine table-based forwarding
-    table_fwd_res = sim.simulate_table_forwarding(graph, src_fwd, dst_fwd)
+    t_col1, t_col2 = st.columns([1, 2])
+    with t_col1:
+        inspect_idx = all_routers.index(default_src) if default_src in all_routers else 0
+        inspect_router = st.selectbox(
+            "Select Router to Inspect Forwarding Table",
+            options=all_routers,
+            index=inspect_idx,
+            key="inspect_router_select"
+        )
+        if inspect_router:
+            r_obj = graph.routers.get(inspect_router)
+            is_on = r_obj.is_online if r_obj else True
+            st.caption(f"Status: **{'Online' if is_on else 'Offline'}** | Direct Neighbors: **{len(graph.get_neighbors(inspect_router))}**")
 
-    fwd_c1, fwd_c2, fwd_c3 = st.columns(3)
-    fwd_c1.metric("Delivery Status", table_fwd_res.get("status", "UNKNOWN"))
-    fwd_c2.metric("Forwarding Hops", table_fwd_res.get("hops", 0))
-    fwd_c3.metric("Final Router Reached", table_fwd_res.get("final_router", "None"))
+    with t_col2:
+        if inspect_router:
+            raw_table = graph.generate_routing_table(inspect_router)
+            df_table = pd.DataFrame(raw_table)
+            df_table.rename(columns={
+                "destination": "Destination Router",
+                "next_hop": "Next Hop",
+                "hops": "Metric Distance (Hops)",
+                "status": "Route Status"
+            }, inplace=True)
+            st.dataframe(df_table, hide_index=True, use_container_width=True)
 
-    if table_fwd_res.get("success"):
-        st.markdown(render_path_pills(table_fwd_res.get("path", [])), unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Section 2: Hop-by-Hop Packet Forwarding Simulation
+    st.markdown("#### 2. Hop-by-Hop Packet Forwarding Simulation")
+    st.caption("Simulate actual packet transmission forwarding router-by-router using only local table lookups.")
+
+    fwd_col1, fwd_col2, fwd_col3 = st.columns([2, 2, 2])
+    with fwd_col1:
+        fwd_src_idx = all_routers.index(default_src) if default_src in all_routers else 0
+        fwd_src = st.selectbox("Source Router", options=all_routers, index=fwd_src_idx, key="fwd_src_select")
+    with fwd_col2:
+        fwd_dst_idx = all_routers.index(default_dst) if default_dst in all_routers else (len(all_routers) - 1)
+        fwd_dst = st.selectbox("Destination Router", options=all_routers, index=fwd_dst_idx, key="fwd_dst_select")
+    with fwd_col3:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        run_fwd_clicked = st.button("Execute Table Forwarding", type="primary", use_container_width=True)
+
+    if run_fwd_clicked:
+        st.session_state["table_fwd_res"] = sim.simulate_table_forwarding(graph, fwd_src, fwd_dst)
+
+    fwd_res = st.session_state.get("table_fwd_res")
+
+    if not fwd_res:
+        st.info("Click **Execute Table Forwarding** to simulate hop-by-hop packet forwarding across intermediate routers.")
     else:
-        st.warning(table_fwd_res.get("message", "Forwarding failed."))
+        # Metrics Display
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        m_col1.metric("Delivery Status", fwd_res.get("status", "UNKNOWN"))
+        m_col2.metric("Forwarding Hops", f"{fwd_res.get('hops', 0)} hops")
+        m_col3.metric("Path Length", f"{len(fwd_res.get('path', []))} routers")
+        m_col4.metric("Final Terminal Router", fwd_res.get("final_router", "None"))
 
-    # Step-by-step table forwarding details
-    if table_fwd_res.get("steps"):
-        fwd_steps_data = []
-        for s in table_fwd_res["steps"]:
-            entry = s.get("table_entry", {})
-            fwd_steps_data.append({
-                "Hop Step": s.get("step"),
-                "Current Router": s.get("current_router"),
-                "Table Lookup Target": dst_fwd,
-                "Next Hop Forwarded": s.get("next_hop"),
-                "Metric Hops": entry.get("hops", "—"),
-                "Action": s.get("action")
-            })
-        st.dataframe(pd.DataFrame(fwd_steps_data), hide_index=True, use_container_width=True)
+        # Forwarded Path Sequence
+        st.markdown("##### Forwarding Path Sequence")
+        st.markdown(render_path_pills(fwd_res.get("path", [])), unsafe_allow_html=True)
 
-    st.write("")
-    st.markdown("#### 3. Architectural Comparison: Graph Routing vs. Table Forwarding")
-    comparison_data = [
-        {"Dimension": "Routing Paradigm", "Graph-Based Routing (BFS/DFS)": "Centralized on-demand path computation", "Table-Based Forwarding": "Distributed hop-by-hop local lookup"},
-        {"Dimension": "Topology Knowledge", "Graph-Based Routing (BFS/DFS)": "Requires complete global graph (V and E)", "Table-Based Forwarding": "Requires only local Next-Hop routing table"},
-        {"Dimension": "Per-Hop Complexity", "Graph-Based Routing (BFS/DFS)": "O(V + E) for global graph traversal", "Table-Based Forwarding": "O(1) hash or array lookup per hop"},
-        {"Dimension": "Failure Handling", "Graph-Based Routing (BFS/DFS)": "Re-runs full traversal from source", "Table-Based Forwarding": "Reroutes immediately if alternative Next Hop exists"},
-        {"Dimension": "Packet Header State", "Graph-Based Routing (BFS/DFS)": "Carries full source route or recomputes", "Table-Based Forwarding": "Carries only Destination IP and TTL"}
+        # Step-by-Step Forwarding Log
+        st.markdown("##### Hop-by-Hop Table Forwarding Execution Log")
+        fwd_steps = fwd_res.get("steps", [])
+        if fwd_steps:
+            step_rows = []
+            for s in fwd_steps:
+                table_entry = s.get("table_entry", {})
+                step_rows.append({
+                    "Hop Step": s.get("step"),
+                    "Current Router": s.get("current_router"),
+                    "Target Destination": fwd_dst,
+                    "Next Hop Forwarded": s.get("next_hop"),
+                    "Action Taken": s.get("action"),
+                    "Table Lookup Metric": f"{table_entry.get('hops', '-')} hops" if table_entry else "-",
+                    "Description": s.get("description")
+                })
+            st.dataframe(pd.DataFrame(step_rows), hide_index=True, use_container_width=True)
+
+        st.markdown("---")
+
+        # Section 3: Live Direct Comparison: Graph Traversal vs Table Forwarding
+        st.markdown("#### 3. Real-Time Comparative Evaluation: Graph Traversal vs. Table Forwarding")
+        st.caption("Direct comparison between centralized graph-based routing (BFS/DFS) and distributed hop-by-hop table forwarding.")
+
+        # Compute or fetch BFS route for accurate side-by-side comparison
+        live_sim_res = st.session_state.get("sim_res")
+        if live_sim_res and live_sim_res.get("source") == fwd_src and live_sim_res.get("dest") == fwd_dst:
+            graph_algo_name = live_sim_res.get("algo", "BFS")
+            graph_path = live_sim_res.get("path", [])
+            graph_hops = live_sim_res.get("hops", 0)
+            graph_success = live_sim_res.get("success", False)
+        else:
+            # Dynamically compute BFS reference for selected endpoints
+            comp_bfs = bfs(graph, fwd_src, fwd_dst)
+            graph_algo_name = "BFS (Graph Traversal)"
+            graph_path = comp_bfs.get("path", [])
+            graph_hops = comp_bfs.get("hops", 0)
+            graph_success = comp_bfs.get("success", False)
+
+        c_col1, c_col2 = st.columns(2)
+        with c_col1:
+            st.markdown(f"**Graph-Based Routing ({graph_algo_name})**")
+            st.markdown(f"- **Discovered Route:** `{' -> '.join(graph_path) if graph_path else 'None'}`")
+            st.markdown(f"- **Total Hops:** `{graph_hops}`")
+            st.markdown(f"- **Delivery Status:** `{'SUCCESS' if graph_success else 'FAILED'}`")
+            st.markdown("- **Knowledge Model:** Centralized global graph traversal with node queue/stack")
+            st.markdown("- **Path Decision:** Pre-computed upfront at controller/source before packet departs")
+            st.markdown(f"- **Computational Complexity:** $O(V + E)$ where $V={len(graph.routers)}, E={len(graph.get_edges())}$")
+
+        with c_col2:
+            st.markdown("**Traditional Table-Based Forwarding (Hop-by-Hop)**")
+            st.markdown(f"- **Forwarded Route:** `{' -> '.join(fwd_res.get('path', [])) if fwd_res.get('path') else 'None'}`")
+            st.markdown(f"- **Total Hops:** `{fwd_res.get('hops', 0)}`")
+            st.markdown(f"- **Delivery Status:** `{fwd_res.get('status', 'FAILED')}`")
+            st.markdown("- **Knowledge Model:** Distributed local forwarding table (FIB) per router")
+            st.markdown("- **Path Decision:** Autonomous hop-by-hop local next-hop table lookup at each router")
+            st.markdown("- **Lookup Complexity:** $O(1)$ Hash table / $O(W)$ Radix Trie lookup per hop")
+
+        # Convergence verdict
+        if graph_path == fwd_res.get("path", []) and graph_success and fwd_res.get("success"):
+            st.success("Both Graph Traversal and Table-Based Forwarding successfully converged onto the **exact same optimal path**.")
+        elif graph_success and fwd_res.get("success"):
+            st.info("Both approaches successfully delivered the packet, utilizing alternative valid paths across the network.")
+        elif not graph_success and not fwd_res.get("success"):
+            st.warning("Both approaches correctly identified that the destination is unreachable under the current network state.")
+        else:
+            st.error("Discrepancy detected: Verify link states or router online statuses.")
+
+    st.markdown("---")
+
+    # Section 4: Architectural Trade-off Matrix (CO5 Curriculum Requirement)
+    st.markdown("#### 4. Architectural Comparison: Graph Traversal vs. Table Forwarding")
+    st.caption("Theoretical and systems-level comparison between graph-based algorithmic routing and routing-table forwarding.")
+
+    comparison_matrix = [
+        {
+            "Architectural Dimension": "1. Topology State Knowledge",
+            "Graph Traversal Routing (BFS / DFS / SDN)": "Global centralized visibility of all network vertices and edges.",
+            "Traditional Table-Based Forwarding (IP / FIB)": "Local knowledge only; routers only know immediate next-hop neighbors."
+        },
+        {
+            "Architectural Dimension": "2. Decision Mechanism",
+            "Graph Traversal Routing (BFS / DFS / SDN)": "End-to-end path calculated upfront at source or SDN controller before transmission.",
+            "Traditional Table-Based Forwarding (IP / FIB)": "Autonomous hop-by-hop lookup at each intermediate router upon packet arrival."
+        },
+        {
+            "Architectural Dimension": "3. Search / Lookup Complexity",
+            "Graph Traversal Routing (BFS / DFS / SDN)": "O(V + E) traversal time computed over the full network topology.",
+            "Traditional Table-Based Forwarding (IP / FIB)": "O(1) hash table or O(W) longest prefix match (LPM) per forwarding hop."
+        },
+        {
+            "Architectural Dimension": "4. Memory & State Overhead",
+            "Graph Traversal Routing (BFS / DFS / SDN)": "High memory footprint: stores complete graph adjacency matrix or edge lists.",
+            "Traditional Table-Based Forwarding (IP / FIB)": "Low memory footprint: stores only destination-to-next-hop forwarding table."
+        },
+        {
+            "Architectural Dimension": "5. Link Failure Reaction",
+            "Graph Traversal Routing (BFS / DFS / SDN)": "Requires re-executing full graph search or notifying centralized controller.",
+            "Traditional Table-Based Forwarding (IP / FIB)": "Local route re-convergence (e.g. fast reroute via alternate next-hop entry)."
+        },
+        {
+            "Architectural Dimension": "6. Real-World Industry Analogs",
+            "Graph Traversal Routing (BFS / DFS / SDN)": "Software-Defined Networking (SDN / OpenFlow), Google Andromeda, AWS VPC.",
+            "Traditional Table-Based Forwarding (IP / FIB)": "Internet Core IP Forwarding, BGP, OSPF, Cisco/Juniper hardware ASIC FIB."
+        }
     ]
-    st.dataframe(pd.DataFrame(comparison_data), hide_index=True, use_container_width=True)
+
+    st.dataframe(pd.DataFrame(comparison_matrix), hide_index=True, use_container_width=True)

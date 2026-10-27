@@ -86,6 +86,19 @@ class Graph:
             return True
         return False
 
+    def auto_layout(self):
+        """Arranges all routers in a balanced circular layout for clear visualization."""
+        nodes = sorted(self.routers.keys())
+        n = len(nodes)
+        if n == 0:
+            return
+        cx, cy = 360.0, 210.0
+        radius = min(220.0, max(100.0, 28.0 * n))
+        for i, rid in enumerate(nodes):
+            angle = (2 * math.pi * i) / n - (math.pi / 2)
+            self.routers[rid].x = round(cx + radius * math.cos(angle), 1)
+            self.routers[rid].y = round(cy + radius * math.sin(angle), 1)
+
     def add_connection(self, u: str, v: str, weight: float = 1.0) -> bool:
         """Adds an undirected transmission link between routers u and v."""
         u_id, v_id = u.strip().upper(), v.strip().upper()
@@ -112,6 +125,11 @@ class Graph:
             self.failed_edges.discard(pair)
             return True
         return False
+
+    def get_neighbors(self, router_id: str) -> List[str]:
+        """Returns sorted list of neighbor router IDs for a given router."""
+        rid = router_id.strip().upper()
+        return sorted(self.adjacency.get(rid, []))
 
     def get_weight(self, u: str, v: str) -> float:
         """Returns the weight / cost of the link between u and v."""

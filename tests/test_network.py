@@ -130,6 +130,15 @@ class TestNetworkGraph(unittest.TestCase):
         self.assertEqual(self.graph.get_weight("N6", "N7"), 1.0)
         self.assertTrue(self.graph.is_connected())
 
+    def test_auto_layout(self):
+        self.graph.load_preset("reference")
+        self.graph.auto_layout()
+        for rid, router in self.graph.routers.items():
+            self.assertIsInstance(router.x, float)
+            self.assertIsInstance(router.y, float)
+            self.assertGreater(router.x, 0.0)
+            self.assertGreater(router.y, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

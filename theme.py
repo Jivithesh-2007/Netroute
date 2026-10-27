@@ -172,6 +172,71 @@ CUSTOM_CSS = f"""
         color: {TEXT_MAIN} !important;
         margin: 4px 0;
     }}
+
+    /* Search Visualizer Array Container */
+    .search-array-container {{
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin: 12px 0;
+        padding: 14px;
+        background: #F8FAFC;
+        border-radius: 8px;
+        border: 1px solid #CBD5E1;
+    }}
+    .search-cell {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 54px;
+    }}
+    .search-cell-idx {{
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #64748B;
+        margin-bottom: 3px;
+    }}
+    .search-cell-box {{
+        width: 54px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.95rem;
+        border-radius: 6px;
+        border: 2px solid #CBD5E1;
+        background: #FFFFFF;
+        color: #0F172A;
+    }}
+    .search-cell-box-active {{
+        border-color: #7C3AED !important;
+        background: #7C3AED !important;
+        color: #FFFFFF !important;
+    }}
+    .search-cell-box-match {{
+        border-color: #10B981 !important;
+        background: #10B981 !important;
+        color: #FFFFFF !important;
+    }}
+    .search-cell-box-checked {{
+        border-color: #94A3B8 !important;
+        background: #E2E8F0 !important;
+        color: #64748B !important;
+    }}
+    .search-cell-box-dim {{
+        border-color: #E2E8F0 !important;
+        background: #F8FAFC !important;
+        color: #CBD5E1 !important;
+        border-style: dashed !important;
+    }}
+    .search-cell-pointer {{
+        font-size: 0.70rem;
+        font-weight: 700;
+        margin-top: 4px;
+        text-align: center;
+    }}
 </style>
 """
 

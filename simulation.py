@@ -42,6 +42,18 @@ def init_session():
     if "selected_algo" not in st.session_state:
         st.session_state["selected_algo"] = "BFS (Breadth-First)"
 
+    if "search_res" not in st.session_state:
+        st.session_state["search_res"] = None
+
+    if "search_step_idx" not in st.session_state:
+        st.session_state["search_step_idx"] = 0
+
+    if "sort_res" not in st.session_state:
+        st.session_state["sort_res"] = None
+
+    if "table_fwd_res" not in st.session_state:
+        st.session_state["table_fwd_res"] = None
+
     g_nodes = list(st.session_state["graph"].routers.keys())
     if "source_id" not in st.session_state or st.session_state["source_id"] not in st.session_state["graph"].routers:
         st.session_state["source_id"] = "N1" if "N1" in st.session_state["graph"].routers else (g_nodes[0] if g_nodes else "N1")
@@ -72,6 +84,10 @@ def invalidate_simulation():
     st.session_state["is_playing"] = False
     st.session_state["packet_hop"] = 0
     st.session_state["packet_auto"] = False
+    st.session_state["search_res"] = None
+    st.session_state["search_step_idx"] = 0
+    st.session_state["sort_res"] = None
+    st.session_state["table_fwd_res"] = None
 
 
 def execute_routing(graph: Graph, algo: str, src: str, dst: str) -> Dict[str, Any]:
