@@ -243,13 +243,14 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
             elif p_hop == len(path) - 1:
                 packet_status = f"Packet successfully DELIVERED at Destination '{packet_node}'! ({len(path) - 1} hops)."
             else:
-                packet_status = f"In Transit: Hop {p_hop}/{len(path) - 1} • At '{packet_node}' ➔ Next: '{next_packet_node}'."
+                packet_status = f"In Transit: Hop {p_hop}/{len(path) - 1} | At '{packet_node}' -> Next: '{next_packet_node}'"
 
     return {
         "step": current_step,
         "res": res,
         "active_node": active_node,
         "active_edge": active_edge,
+        "action_target": current_step.get("action_target") if current_step else None,
         "visited_nodes": visited_nodes,
         "explored_edges": explored_edges,
         "tree_edges": tree_edges,

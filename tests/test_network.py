@@ -79,6 +79,38 @@ class TestNetworkGraph(unittest.TestCase):
         self.assertEqual(len(g2.routers), len(self.graph.routers))
         self.assertEqual(len(g2.get_edges()), len(self.graph.get_edges()))
 
+    def test_rename_router(self):
+        self.graph.add_router("R1", "Original Name")
+        self.assertTrue(self.graph.rename_router("R1", "New Gateway"))
+        self.assertEqual(self.graph.routers["R1"].name, "New Gateway")
+        # Empty name should fail
+        self.assertFalse(self.graph.rename_router("R1", "   "))
+        # Non-existent router should fail
+        self.assertFalse(self.graph.rename_router("NONEXISTENT", "Label"))
+
+    def test_duplicate_connection_rejection(self):
+        self.graph.add_router("R1")
+        self.graph.add_router("R2")
+        self.assertTrue(self.graph.add_connection("R1", "R2"))
+        # Adding existing link again should return False
+        self.assertFalse(self.graph.add_connection("R1", "R2"))
+        self.assertFalse(self.graph.add_connection("R2", "R1"))
+
+    def test_reachability(self):
+        self.graph.load_preset("direct")  # R1 - R2 - R3 - R4
+        self.assertTrue(self.graph.is_reachable("R1", "R4"))
+        # Set intermediate R2 offline
+        self.graph.routers["R2"].is_online = False
+        self.assertFalse(self.graph.is_reachable("R1", "R4"))
+
+    def test_graph_summary(self):
+        self.graph.load_preset("sample")
+        summary = self.graph.get_summary()
+        self.assertEqual(summary["total_routers"], len(self.graph.routers))
+        self.assertEqual(summary["online_routers"], len(self.graph.routers))
+        self.assertEqual(summary["total_edges"], len(self.graph.get_edges()))
+        self.assertTrue(summary["is_connected"])
+
     def test_router_id_validation(self):
         ok, _ = validate_router_id("R1")
         self.assertTrue(ok)

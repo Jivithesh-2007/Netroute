@@ -86,10 +86,10 @@ class Graph:
         u_id, v_id = u.strip().upper(), v.strip().upper()
         if u_id not in self.routers or v_id not in self.routers or u_id == v_id:
             return False
-        if v_id not in self.adjacency[u_id]:
-            self.adjacency[u_id].append(v_id)
-        if u_id not in self.adjacency[v_id]:
-            self.adjacency[v_id].append(u_id)
+        if v_id in self.adjacency[u_id]:
+            return False  # Link already exists
+        self.adjacency[u_id].append(v_id)
+        self.adjacency[v_id].append(u_id)
         return True
 
     def remove_connection(self, u: str, v: str) -> bool:
@@ -269,14 +269,43 @@ class Graph:
 
         else:
             # Default balanced 6-router mesh
-            nodes = [
-                ("R1", 120, 110), ("R2", 300, 70), ("R3", 480, 110),
-                ("R4", 170, 250), ("R5", 350, 260), ("R6", 520, 250)
-            ]
-            for rid, x, y in nodes:
-                self.add_router(rid, x=x, y=y)
-            for u, v in [("R1", "R2"), ("R1", "R4"), ("R2", "R3"), ("R2", "R5"), ("R3", "R6"), ("R4", "R5"), ("R5", "R6")]:
-                self.add_connection(u, v)
+            import os
+            import json
+            sample_file = os.path.join(os.path.dirname(__file__), "data", "sample_network.json")
+            loaded_from_file = False
+            if os.path.exists(sample_file):
+                try:
+                    with open(sample_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    ok, _ = self.load_from_dict(data)
+                    if ok:
+                        loaded_from_file = True
+                except Exception:
+                    loaded_from_file = False
+
+            if not loaded_from_file:
+                nodes = [
+                    ("R1", 120, 110), ("R2", 300, 70), ("R3", 480, 110),
+                    ("R4", 170, 250), ("R5", 350, 260), ("R6", 520, 250)
+                ]
+                for rid, x, y in nodes:
+                    self.add_router(rid, x=x, y=y)
+                for u, v in [("R1", "R2"), ("R1", "R4"), ("R2", "R3"), ("R2", "R5"), ("R3", "R6"), ("R4", "R5"), ("R5", "R6")]:
+                    self.add_connection(u, v)
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Returns high-level graph statistics."""
+        online_count = sum(1 for r in self.routers.values() if r.is_online)
+        comps = self.get_connected_components()
+        return {
+            "total_routers": len(self.routers),
+            "online_routers": online_count,
+            "offline_routers": len(self.routers) - online_count,
+            "total_edges": len(self.get_edges()),
+            "is_connected": self.is_connected(),
+            "component_count": len(comps),
+            "components": [sorted(list(c)) for c in comps]
+        }
 
     def generate_random_connected(self, num_routers: int = 6):
         """Generates a connected random network with circular coordinates."""

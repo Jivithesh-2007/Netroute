@@ -92,6 +92,7 @@ Open your browser at `http://localhost:8501`.
 
 ### Run Automated Tests
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py"
+python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
-All 21 unit tests verify graph operations, BFS, DFS, and simulation state.
+All 30 unit tests verify graph operations, rename features, reachability, BFS, DFS, queue/stack mechanics, and simulation playback state.
+

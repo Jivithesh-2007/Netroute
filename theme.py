@@ -207,7 +207,31 @@ CUSTOM_CSS = f"""
     .chip-bot   {{ background: #F3F4F6; color: #1E293B !important; border: 1px solid #CBD5E1; }}
     .chip-item  {{ background: #F8FAFC; color: #334155 !important; border: 1px solid #CBD5E1; }}
     .chip-visited {{ background: #DCFCE7; color: #166534 !important; border: 1px solid #86EFAC; }}
-    
+    .chip-active  {{ background: #FEF3C7; color: #B45309 !important; border: 2px solid #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }}
+    .chip-backtrack {{ background: #FEE2E2; color: #991B1B !important; border: 2px solid #EF4444; }}
+
+    /* Step Card */
+    .step-box {{
+        background: #FFFFFF;
+        border: 1px solid #CBD5E1;
+        border-left: 4px solid #2563EB;
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
+    }}
+    .step-box-header {{
+        font-size: 0.84rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }}
+    .step-box-desc {{
+        font-size: 0.92rem;
+        color: #0F172A !important;
+        line-height: 1.45;
+    }}
+
     /* Alert / Banner Boxes */
     div[data-testid="stAlert"] {{
         background-color: #FFFFFF !important;
@@ -229,5 +253,15 @@ def render_metric_card(label: str, value: str, sub: str = "", color: str = PRIMA
         <div class="metric-label">{label}</div>
         <div class="metric-value" style="color: {color} !important;">{value}</div>
         <div class="metric-sub">{sub}</div>
+    </div>
+    """
+
+
+def render_step_card(step_num: int, operation: str, description: str, color: str = PRIMARY) -> str:
+    """Renders a styled step execution card with operation tag."""
+    return f"""
+    <div class="step-box" style="border-left-color: {color};">
+        <div class="step-box-header" style="color: {color};">STEP {step_num} | {operation}</div>
+        <div class="step-box-desc">{description}</div>
     </div>
     """

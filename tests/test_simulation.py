@@ -83,6 +83,40 @@ class TestSimulation(unittest.TestCase):
             sim.reset_packet()
             self.assertEqual(mock_st.session_state["packet_hop"], 0)
 
+    def test_simulation_invalidation(self):
+        with patch.object(sim, "st") as mock_st:
+            mock_st.session_state = {
+                "sim_res": {"success": True},
+                "step_idx": 5,
+                "is_playing": True,
+                "packet_hop": 2,
+                "packet_auto": True
+            }
+            sim.invalidate_simulation()
+            self.assertIsNone(mock_st.session_state["sim_res"])
+            self.assertEqual(mock_st.session_state["step_idx"], 0)
+            self.assertFalse(mock_st.session_state["is_playing"])
+            self.assertEqual(mock_st.session_state["packet_hop"], 0)
+            self.assertFalse(mock_st.session_state["packet_auto"])
+
+    def test_simulation_status(self):
+        with patch.object(sim, "st") as mock_st:
+            # When no sim_res -> Ready
+            mock_st.session_state = {"sim_res": None}
+            self.assertEqual(sim.get_simulation_status(), "Ready")
+
+            # When is_playing -> Running
+            mock_st.session_state = {"sim_res": {"success": True, "steps": [1, 2]}, "is_playing": True}
+            self.assertEqual(sim.get_simulation_status(), "Running")
+
+            # When failed -> No Route
+            mock_st.session_state = {"sim_res": {"success": False}, "is_playing": False}
+            self.assertEqual(sim.get_simulation_status(), "No Route")
+
+            # When at final step -> Completed
+            mock_st.session_state = {"sim_res": {"success": True, "steps": [1, 2, 3]}, "step_idx": 2, "is_playing": False}
+            self.assertEqual(sim.get_simulation_status(), "Completed")
+
 
 if __name__ == "__main__":
     unittest.main()
