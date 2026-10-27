@@ -373,34 +373,59 @@ def capture_baseline_route(graph: Graph, algo: str, src: str, dst: str) -> Dict[
     return baseline
 
 
-def compare_failure_routes(baseline: Optional[Dict[str, Any]], current_res: Dict[str, Any]) -> Dict[str, Any]:
-    """Compares baseline route vs failure route to provide precise recovery analytics."""
+def compare_failure_routes(*args, **kwargs) -> Dict[str, Any]:
+    """
+    Compares baseline route vs failure route to provide precise recovery analytics.
+    Supports:
+      - compare_failure_routes(baseline_dict, current_res_dict)
+      - compare_failure_routes(graph, algo, src, dst)
+    """
+    failed_routers = []
+    failed_connections = []
+
+    if len(args) >= 1 and isinstance(args[0], Graph):
+        graph = args[0]
+        algo = args[1] if len(args) > 1 else kwargs.get("algo", "BFS")
+        src = args[2] if len(args) > 2 else kwargs.get("src", "N1")
+        dst = args[3] if len(args) > 3 else kwargs.get("dst", "N7")
+
+        baseline = st.session_state.get("failure_lab_baseline")
+        if not baseline:
+            baseline = capture_baseline_route(graph, algo, src, dst)
+
+        if "Dijkstra" in algo or "Minimum-Cost" in algo or "Weighted" in algo:
+            current_res = dijkstra(graph, src, dst)
+        elif "DFS" in algo:
+            current_res = dfs(graph, src, dst)
+        else:
+            current_res = bfs(graph, src, dst)
+
+        failed_routers = [r for r, obj in graph.routers.items() if not obj.is_online]
+        failed_connections = [f"{u} <-> {v}" for u, v in getattr(graph, "failed_edges", set())]
+    else:
+        baseline = args[0] if len(args) > 0 else kwargs.get("baseline")
+        current_res = args[1] if len(args) > 1 else kwargs.get("current_res", {})
+
+    b_path = list(baseline.get("path", [])) if baseline else []
+    b_hops = baseline.get("hops", 0) if baseline else 0
+    b_cost = float(baseline.get("cost", 0.0)) if baseline else 0.0
+
+    c_success = current_res.get("success", False) if current_res else False
+    c_path = list(current_res.get("path", [])) if current_res else []
+    c_hops = current_res.get("hops", 0) if current_res else 0
+    c_cost = float(current_res.get("path_cost", 0.0)) if current_res else 0.0
+
+    detour_hops = c_hops - b_hops
+    detour_cost = c_cost - b_cost
+    route_changed = (b_path != c_path)
+
     if not baseline:
-        return {
-            "status": "No Baseline",
-            "detour_hops": 0,
-            "detour_cost": 0.0,
-            "summary": "Capture a baseline route before simulating failures."
-        }
-
-    c_success = current_res.get("success", False)
-    b_path = baseline.get("path", [])
-    c_path = current_res.get("path", [])
-
-    if not c_success:
-        return {
-            "status": "Unreachable / Partitioned",
-            "original_path": b_path,
-            "current_path": [],
-            "detour_hops": 0,
-            "detour_cost": 0.0,
-            "summary": "Destination is completely unreachable! Network partition occurred."
-        }
-
-    detour_hops = current_res.get("hops", 0) - baseline.get("hops", 0)
-    detour_cost = current_res.get("path_cost", 0.0) - baseline.get("cost", 0.0)
-
-    if b_path == c_path:
+        status = "No Baseline"
+        summary = "Capture a baseline route before simulating failures."
+    elif not c_success:
+        status = "Unreachable / Partitioned"
+        summary = "Destination is completely unreachable! Network partition occurred."
+    elif b_path == c_path:
         status = "Original Optimal Route Active"
         summary = "No detour needed. Current route matches healthy baseline."
     else:
@@ -411,16 +436,72 @@ def compare_failure_routes(baseline: Optional[Dict[str, Any]], current_res: Dict
         "status": status,
         "original_path": b_path,
         "current_path": c_path,
+        "baseline_path": b_path,
+        "baseline_hops": b_hops,
+        "baseline_cost": b_cost,
+        "current_hops": c_hops,
+        "current_cost": c_cost,
         "detour_hops": detour_hops,
         "detour_cost": detour_cost,
+        "is_reachable": c_success,
+        "failed_routers": failed_routers,
+        "failed_connections": failed_connections,
+        "route_changed": route_changed,
         "summary": summary
     }
 
 
-def export_experiment_report(res: Dict[str, Any], graph: Graph, algo: str, src: str, dst: str, format_type: str = "json") -> str:
-    """Generates an exportable CSV or JSON report based strictly on actual simulation metrics."""
+def export_experiment_report(*args, **kwargs) -> Any:
+    """
+    Generates an exportable CSV, JSON, or dict report based strictly on actual simulation metrics.
+    Supports:
+      - export_experiment_report(res, graph, algo, src, dst, format_type="json")
+      - export_experiment_report(graph, res, algo, src, dst, format_type="dict")
+    """
+    if len(args) >= 1 and isinstance(args[0], Graph):
+        graph = args[0]
+        res = args[1] if len(args) > 1 else kwargs.get("res", {})
+        algo = args[2] if len(args) > 2 else kwargs.get("algo", "BFS")
+        src = args[3] if len(args) > 3 else kwargs.get("src", "N1")
+        dst = args[4] if len(args) > 4 else kwargs.get("dst", "N7")
+        default_fmt = "dict"
+    else:
+        res = args[0] if len(args) > 0 else kwargs.get("res")
+        graph = args[1] if len(args) > 1 else kwargs.get("graph")
+        algo = args[2] if len(args) > 2 else kwargs.get("algo", "BFS")
+        src = args[3] if len(args) > 3 else kwargs.get("src", "N1")
+        dst = args[4] if len(args) > 4 else kwargs.get("dst", "N7")
+        default_fmt = "json"
+
+    format_type = kwargs.get("format_type", default_fmt)
+    if len(args) >= 6:
+        format_type = args[5]
+
     if not res:
-        return "{}" if format_type == "json" else "Metric,Value\nStatus,No simulation results recorded"
+        if format_type == "json":
+            return "{}"
+        elif format_type == "csv":
+            return "Metric,Value\nStatus,No simulation results recorded"
+        else:
+            return {
+                "title": "Network Routing Experiment Report",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "source": src,
+                "destination": dst,
+                "algorithm": algo,
+                "route": [],
+                "hops": 0,
+                "total_weight": 0.0,
+                "visited_count": 0,
+                "reachability": "No Simulation",
+                "theoretical_complexity": {"time": "N/A", "space": "N/A"},
+                "explanation": "No simulation results recorded.",
+                "topology": {
+                    "total_routers": len(graph.routers) if graph else 0,
+                    "active_routers": sum(1 for r in graph.routers.values() if r.is_online) if graph else 0,
+                    "total_connections": len(graph.get_edges()) if graph else 0
+                }
+            }
 
     algo_name = res.get("algorithm", algo)
     path = res.get("path", [])
@@ -455,22 +536,38 @@ def export_experiment_report(res: Dict[str, Any], graph: Graph, algo: str, src: 
         "algorithm": algo_name,
         "core_data_structure": ds_name,
         "success": success,
-        "route_discovered": " -> ".join(path) if path else "None (Unreachable)",
+        "reachability": "Reachable" if success else "Unreachable",
+        "route": path,
         "route_nodes": path,
+        "route_discovered": " -> ".join(path) if path else "None (Unreachable)",
+        "hops": hops,
         "hop_count": hops,
         "total_cost": cost,
+        "total_weight": cost,
         "total_visited_routers": len(visited),
+        "visited_count": len(visited),
         "visited_sequence": visited,
         "total_execution_steps": len(res.get("steps", [])),
         "execution_latency_ms": round(elapsed, 3),
         "time_complexity": time_comp,
         "auxiliary_space_complexity": space_comp,
-        "network_topology": {
-            "total_routers": len(graph.routers),
-            "online_routers": sum(1 for r in graph.routers.values() if r.is_online),
-            "total_connections": len(graph.get_edges()),
-            "failed_connections": len(graph.failed_edges)
+        "theoretical_complexity": {
+            "time": time_comp,
+            "space": space_comp
         },
+        "topology": {
+            "total_routers": len(graph.routers) if graph else 0,
+            "active_routers": sum(1 for r in graph.routers.values() if r.is_online) if graph else 0,
+            "total_connections": len(graph.get_edges()) if graph else 0,
+            "failed_connections": len(graph.failed_edges) if hasattr(graph, "failed_edges") else 0
+        },
+        "network_topology": {
+            "total_routers": len(graph.routers) if graph else 0,
+            "online_routers": sum(1 for r in graph.routers.values() if r.is_online) if graph else 0,
+            "total_connections": len(graph.get_edges()) if graph else 0,
+            "failed_connections": len(graph.failed_edges) if hasattr(graph, "failed_edges") else 0
+        },
+        "explanation": rationale,
         "algorithmic_explanation": rationale
     }
 
@@ -496,8 +593,10 @@ def export_experiment_report(res: Dict[str, Any], graph: Graph, algo: str, src: 
         writer.writerow(["Space Complexity", report_data["auxiliary_space_complexity"]])
         writer.writerow(["Outcome", report_data["algorithmic_explanation"]])
         return output.getvalue()
+    elif format_type.lower() == "json":
+        return json.dumps(report_data, indent=2)
 
-    return json.dumps(report_data, indent=2)
+    return report_data
 
 
 CHALLENGES = [

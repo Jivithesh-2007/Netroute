@@ -257,6 +257,13 @@ class Graph:
         self.weights.clear()
         self.failed_edges.clear()
 
+    @classmethod
+    def from_preset(cls, preset_name: str) -> "Graph":
+        """Factory method to construct a Graph initialized with a preset."""
+        g = cls()
+        g.load_preset(preset_name)
+        return g
+
     def load_preset(self, preset_name: str):
         """Loads educational topology presets."""
         self.clear()
