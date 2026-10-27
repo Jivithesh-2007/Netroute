@@ -4,6 +4,8 @@ Ensures 100% text visibility across all widgets, buttons, tabs, and cards.
 Zero emojis used.
 """
 
+from typing import List, Dict, Any, Optional
+
 # Color Palette
 BG_PAGE = "#F8FAFC"
 BG_CARD = "#FFFFFF"
@@ -230,6 +232,65 @@ CUSTOM_CSS = f"""
         font-size: 0.92rem;
         color: #0F172A !important;
         line-height: 1.45;
+    }}
+
+    /* Native Container Border Styling matching panel-card */
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        border-radius: 12px !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+        margin-bottom: 14px !important;
+    }}
+    div[data-testid="stVerticalBlockBorderWrapper"] > div {{
+        background-color: #FFFFFF !important;
+        border: none !important;
+        padding: 16px 18px !important;
+    }}
+
+    /* Live Step Execution Card */
+    .step-live-card {{
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-left: 4px solid #2563EB;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-top: 8px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }}
+    .step-live-tag {{
+        font-size: 0.74rem;
+        font-weight: 800;
+        color: #2563EB;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }}
+    .step-live-status {{
+        font-size: 0.70rem;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 4px;
+        letter-spacing: 0.04em;
+    }}
+    .step-status-running {{
+        background: #EFF6FF;
+        color: #2563EB;
+    }}
+    .step-status-paused {{
+        background: #FEF3C7;
+        color: #D97706;
+    }}
+    .step-status-completed {{
+        background: #ECFDF5;
+        color: #059669;
+    }}
+    .step-live-desc {{
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #0F172A !important;
+        margin-top: 4px;
+        line-height: 1.4;
     }}
 
     /* Panel Card (Matching Reference Dashboard) */

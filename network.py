@@ -50,6 +50,7 @@ class Graph:
         self.routers: Dict[str, Router] = {}
         self.adjacency: Dict[str, List[str]] = {}
         self.weights: Dict[Tuple[str, str], float] = {}
+        self.failed_edges: Set[Tuple[str, str]] = set()
 
     def add_router(self, router_id: str, name: str = "", x: float = 200.0, y: float = 200.0, is_online: bool = True) -> bool:
         """Adds a new router with unique ID validation."""
@@ -73,6 +74,7 @@ class Graph:
         for u in self.adjacency:
             self.adjacency[u] = [v for v in self.adjacency[u] if v != rid]
         self.weights = {k: w for k, w in self.weights.items() if rid not in k}
+        self.failed_edges = {k for k in self.failed_edges if rid not in k}
         return True
 
     def rename_router(self, router_id: str, new_name: str) -> bool:
@@ -90,6 +92,8 @@ class Graph:
             return False
         if v_id in self.adjacency[u_id]:
             return False  # Link already exists
+        if weight < 0:
+            return False
         self.adjacency[u_id].append(v_id)
         self.adjacency[v_id].append(u_id)
         pair = tuple(sorted((u_id, v_id)))
@@ -101,6 +105,19 @@ class Graph:
         pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
         return self.weights.get(pair, 1.0)
 
+    def set_weight(self, u: str, v: str, weight: float) -> bool:
+        """Sets the weight of an existing connection. Rejects negative values."""
+        if weight < 0:
+            return False
+        u_id, v_id = u.strip().upper(), v.strip().upper()
+        if u_id not in self.routers or v_id not in self.routers:
+            return False
+        pair = tuple(sorted((u_id, v_id)))
+        if v_id not in self.adjacency.get(u_id, []):
+            return False
+        self.weights[pair] = float(weight)
+        return True
+
     def remove_connection(self, u: str, v: str) -> bool:
         """Removes the transmission link between routers u and v."""
         u_id, v_id = u.strip().upper(), v.strip().upper()
@@ -109,8 +126,35 @@ class Graph:
             self.adjacency[v_id].remove(u_id)
             pair = tuple(sorted((u_id, v_id)))
             self.weights.pop(pair, None)
+            self.failed_edges.discard(pair)
             return True
         return False
+
+    def toggle_connection_status(self, u: str, v: str) -> Optional[bool]:
+        """Toggles link active/failed state for Failure & Recovery Lab. Returns True if active, False if failed."""
+        u_id, v_id = u.strip().upper(), v.strip().upper()
+        if u_id not in self.routers or v_id not in self.routers:
+            return None
+        pair = tuple(sorted((u_id, v_id)))
+        if v_id not in self.adjacency.get(u_id, []):
+            return None
+        if pair in self.failed_edges:
+            self.failed_edges.remove(pair)
+            return True  # Restored to active
+        else:
+            self.failed_edges.add(pair)
+            return False  # Failed
+
+    def is_edge_active(self, u: str, v: str) -> bool:
+        """Checks if a transmission link between u and v is active (not failed)."""
+        pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
+        return pair not in self.failed_edges
+
+    def restore_all_failures(self):
+        """Restores all failed routers to online and all failed links to active."""
+        for r in self.routers.values():
+            r.is_online = True
+        self.failed_edges.clear()
 
     def toggle_router_status(self, router_id: str) -> Optional[bool]:
         """Toggles router online/offline state for failure simulation."""
@@ -145,7 +189,7 @@ class Graph:
         return nodes, matrix
 
     def get_connected_components(self) -> List[Set[str]]:
-        """Finds connected components of online routers using BFS."""
+        """Finds connected components of online routers using BFS considering active links."""
         visited = set()
         components = []
         for rid, router in sorted(self.routers.items()):
@@ -158,7 +202,7 @@ class Graph:
                 curr = queue.popleft()
                 comp.add(curr)
                 for nbr in self.adjacency.get(curr, []):
-                    if nbr in self.routers and self.routers[nbr].is_online and nbr not in visited:
+                    if nbr in self.routers and self.routers[nbr].is_online and self.is_edge_active(curr, nbr) and nbr not in visited:
                         visited.add(nbr)
                         queue.append(nbr)
             components.append(comp)
@@ -173,7 +217,7 @@ class Graph:
         return len(comps) == 1 and len(comps[0]) == online_count
 
     def is_reachable(self, src: str, dst: str) -> bool:
-        """Checks if a reachable path exists between online src and dst."""
+        """Checks if a reachable path exists between online src and dst across active links."""
         src, dst = src.strip().upper(), dst.strip().upper()
         if src not in self.routers or dst not in self.routers:
             return False
@@ -188,7 +232,7 @@ class Graph:
             if curr == dst:
                 return True
             for nbr in self.adjacency.get(curr, []):
-                if nbr in self.routers and self.routers[nbr].is_online and nbr not in visited:
+                if nbr in self.routers and self.routers[nbr].is_online and self.is_edge_active(curr, nbr) and nbr not in visited:
                     visited.add(nbr)
                     queue.append(nbr)
         return False
@@ -207,17 +251,42 @@ class Graph:
             self.routers[rid].y = round(cy + radius * math.sin(angle), 1)
 
     def clear(self):
-        """Clears all routers and connections."""
+        """Clears all routers, connections, weights, and failure states."""
         self.routers.clear()
         self.adjacency.clear()
         self.weights.clear()
+        self.failed_edges.clear()
 
     def load_preset(self, preset_name: str):
         """Loads educational topology presets."""
         self.clear()
         p = preset_name.lower()
 
-        if p == "direct":
+        if p in ("weighted_diff", "dijkstra_diff", "comparison"):
+            # Predefined topology where BFS minimum-hop route differs from Dijkstra minimum-cost route:
+            # BFS route: S -> A -> D (2 hops, weight: 1 + 12 = 13)
+            # Dijkstra route: S -> A -> B -> D (3 hops, weight: 1 + 1 + 2 = 4)
+            nodes = [
+                ("S", "Source Server", 120.0, 200.0),
+                ("A", "Gateway Alpha", 280.0, 110.0),
+                ("B", "Switch Beta", 460.0, 110.0),
+                ("C", "Router Charlie", 370.0, 290.0),
+                ("D", "Dest Server", 620.0, 200.0)
+            ]
+            for rid, name, x, y in nodes:
+                self.add_router(rid, name=name, x=x, y=y)
+            links = [
+                ("S", "A", 1.0),
+                ("A", "D", 12.0),
+                ("S", "C", 2.0),
+                ("C", "B", 2.0),
+                ("B", "D", 2.0),
+                ("A", "B", 1.0)
+            ]
+            for u, v, w in links:
+                self.add_connection(u, v, weight=w)
+
+        elif p == "direct":
             # Linear chain: R1 - R2 - R3 - R4
             nodes = [("R1", 120, 180), ("R2", 260, 180), ("R3", 400, 180), ("R4", 540, 180)]
             for rid, x, y in nodes:
@@ -407,7 +476,8 @@ class Graph:
         """Serializes topology to a portable dictionary format."""
         return {
             "routers": [r.to_dict() for r in self.routers.values()],
-            "edges": [[u, v, self.get_weight(u, v)] for (u, v) in self.get_edges()]
+            "edges": [[u, v, self.get_weight(u, v)] for (u, v) in self.get_edges()],
+            "failed_edges": [list(e) for e in self.failed_edges]
         }
 
     def load_from_dict(self, data: Dict[str, Any]) -> Tuple[bool, str]:
@@ -429,6 +499,9 @@ class Graph:
             if len(edge) >= 2:
                 w = float(edge[2]) if len(edge) >= 3 else 1.0
                 self.add_connection(edge[0], edge[1], weight=w)
+        for fe in data.get("failed_edges", []):
+            if len(fe) >= 2:
+                self.failed_edges.add(tuple(sorted((str(fe[0]), str(fe[1])))))
         return True, f"Loaded {len(self.routers)} routers and {len(self.get_edges())} connections."
 
 

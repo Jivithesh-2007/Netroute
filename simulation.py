@@ -8,10 +8,12 @@ Maintains a single source of truth in Streamlit session state for:
 - Invalidation of outdated simulation data upon topology modification.
 """
 
+import time
+import json
 from typing import Dict, Any, Optional, Set, List, Tuple
 import streamlit as st
 from network import Graph
-from algorithms import bfs, dfs
+from algorithms import bfs, dfs, dijkstra
 
 
 def init_session():
@@ -40,13 +42,19 @@ def init_session():
         st.session_state["packet_auto"] = False
 
     if "selected_algo" not in st.session_state:
-        st.session_state["selected_algo"] = "BFS (Shortest-Hop)"
+        st.session_state["selected_algo"] = "BFS (Breadth First)"
 
     if "source_id" not in st.session_state:
         st.session_state["source_id"] = "N1" if "N1" in st.session_state["graph"].routers else ("R1" if "R1" in st.session_state["graph"].routers else (list(st.session_state["graph"].routers.keys())[0] if st.session_state["graph"].routers else "N1"))
 
     if "dest_id" not in st.session_state:
         st.session_state["dest_id"] = "N7" if "N7" in st.session_state["graph"].routers else ("R6" if "R6" in st.session_state["graph"].routers else (list(st.session_state["graph"].routers.keys())[-1] if st.session_state["graph"].routers else "N7"))
+
+    if "history" not in st.session_state:
+        st.session_state["history"] = []
+
+    if "failure_lab_baseline" not in st.session_state:
+        st.session_state["failure_lab_baseline"] = None
 
 
 def get_simulation_status() -> str:
@@ -74,18 +82,21 @@ def invalidate_simulation():
 
 
 def execute_routing(graph: Graph, algo: str, src: str, dst: str) -> Dict[str, Any]:
-    """Runs genuine BFS or DFS, stores steps, and starts playback from step 0."""
-    if "BFS" in algo:
-        res = bfs(graph, src, dst)
-    else:
+    """Runs genuine BFS, DFS, or Dijkstra, stores steps, records history, and starts playback from step 0."""
+    if "Dijkstra" in algo or "Minimum-Cost" in algo or "Weighted" in algo:
+        res = dijkstra(graph, src, dst)
+    elif "DFS" in algo:
         res = dfs(graph, src, dst)
+    else:
+        res = bfs(graph, src, dst)
 
     st.session_state["sim_res"] = res
-    # Start at step 0 so user sees initialization, or allow play through
     st.session_state["step_idx"] = 0
     st.session_state["is_playing"] = False
     st.session_state["packet_hop"] = 0
     st.session_state["packet_auto"] = False
+
+    record_history_entry(res, graph, algo, src, dst)
     return res
 
 
@@ -196,7 +207,9 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
     current_step = None
     active_node = None
     active_edge = None
+    action_target = None
     visited_nodes: Set[str] = set()
+    visited_sequence: List[str] = []
     explored_edges: Set[Tuple[str, str]] = set()
     tree_edges: List[Tuple[str, str]] = []
     route_nodes: Set[str] = set()
@@ -204,14 +217,21 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
     packet_node = None
     next_packet_node = None
     packet_status = "No route discovered."
+    is_completed = False
 
     if res and res.get("steps"):
-        idx = max(0, min(st.session_state.get("step_idx", 0), len(res["steps"]) - 1))
+        tot_steps = len(res["steps"])
+        idx = max(0, min(st.session_state.get("step_idx", 0), tot_steps - 1))
         current_step = res["steps"][idx]
+        is_completed = (idx == tot_steps - 1)
 
         active_node = current_step.get("current_node")
         active_edge = current_step.get("active_edge")
-        visited_nodes = set(current_step.get("visited", []))
+        action_target = current_step.get("action_target")
+        visited_sequence = list(current_step.get("visited", []))
+        visited_nodes = set(visited_sequence)
+        if active_node and active_node in graph.routers:
+            visited_nodes.add(active_node)
 
         # Accumulate explored edges up to this step
         for s in res["steps"][:idx + 1]:
@@ -223,12 +243,16 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
             if par is not None:
                 tree_edges.append(tuple(sorted((par, child))))
 
-    if res and res.get("success") and res.get("path"):
+    # Only activate the full reconstructed route when traversal has completed!
+    if res and res.get("success") and res.get("path") and is_completed:
         path = res["path"]
         route_nodes = set(path)
         for i in range(len(path) - 1):
             route_edges.append(tuple(sorted((path[i], path[i + 1]))))
 
+    # Packet handling
+    if res and res.get("success") and res.get("path"):
+        path = res["path"]
         p_hop = st.session_state.get("packet_hop", 0)
         if 0 <= p_hop < len(path):
             packet_node = path[p_hop]
@@ -244,14 +268,18 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
                 packet_status = f"Packet successfully DELIVERED at Destination '{packet_node}'! ({len(path) - 1} hops)."
             else:
                 packet_status = f"In Transit: Hop {p_hop}/{len(path) - 1} | At '{packet_node}' -> Next: '{next_packet_node}'"
+    elif current_step and current_step.get("current_node"):
+        packet_node = current_step.get("current_node")
 
     return {
         "step": current_step,
         "res": res,
+        "is_completed": is_completed,
         "active_node": active_node,
         "active_edge": active_edge,
-        "action_target": current_step.get("action_target") if current_step else None,
+        "action_target": action_target,
         "visited_nodes": visited_nodes,
+        "visited_sequence": visited_sequence,
         "explored_edges": explored_edges,
         "tree_edges": tree_edges,
         "route_nodes": route_nodes,
@@ -260,3 +288,295 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
         "next_packet_node": next_packet_node,
         "packet_status": packet_status
     }
+
+
+# -------------------------------------------------------------
+# ADVANCED FEATURES ENGINE: HISTORY, FAILURE LAB, REPORTS & CHALLENGES
+# -------------------------------------------------------------
+
+def record_history_entry(res: Dict[str, Any], graph: Graph, algo: str, src: str, dst: str):
+    """Records completed routing run into lightweight session state history."""
+    if not res:
+        return
+    history = st.session_state.setdefault("history", [])
+
+    algo_clean = "Dijkstra" if "Dijkstra" in algo else ("DFS" if "DFS" in algo else "BFS")
+    ops_count = (
+        res.get("total_enqueues", 0) if "BFS" in algo_clean
+        else (res.get("total_pushes", 0) if "DFS" in algo_clean
+        else res.get("total_relaxations", 0))
+    )
+
+    entry = {
+        "run_id": len(history) + 1,
+        "timestamp": time.strftime("%H:%M:%S"),
+        "algorithm": algo_clean,
+        "source": src,
+        "destination": dst,
+        "topology": f"{len(graph.routers)} Routers, {len(graph.get_edges())} Links",
+        "route": list(res.get("path", [])),
+        "route_str": " -> ".join(res.get("path", [])) if res.get("path") else "No Route",
+        "hops": res.get("hops", 0),
+        "cost": float(res.get("path_cost", 0.0)),
+        "visited_count": len(res.get("visited", [])),
+        "operations": ops_count,
+        "success": bool(res.get("success", False)),
+        "steps_count": len(res.get("steps", [])),
+        "full_res": res
+    }
+    history.append(entry)
+
+
+def get_history() -> List[Dict[str, Any]]:
+    """Returns the recorded session history."""
+    return st.session_state.get("history", [])
+
+
+def clear_history():
+    """Clears all session history entries."""
+    st.session_state["history"] = []
+
+
+def replay_history_run(run_id: int) -> bool:
+    """Loads a previous recorded run's execution steps into session state for playback."""
+    history = st.session_state.get("history", [])
+    for entry in history:
+        if entry["run_id"] == run_id:
+            st.session_state["sim_res"] = entry["full_res"]
+            st.session_state["source_id"] = entry["source"]
+            st.session_state["dest_id"] = entry["destination"]
+            st.session_state["step_idx"] = 0
+            st.session_state["is_playing"] = True
+            return True
+    return False
+
+
+def capture_baseline_route(graph: Graph, algo: str, src: str, dst: str) -> Dict[str, Any]:
+    """Computes and caches the baseline healthy route for Failure & Recovery Lab."""
+    if "Dijkstra" in algo or "Minimum-Cost" in algo or "Weighted" in algo:
+        res = dijkstra(graph, src, dst)
+    elif "DFS" in algo:
+        res = dfs(graph, src, dst)
+    else:
+        res = bfs(graph, src, dst)
+
+    baseline = {
+        "algorithm": algo,
+        "source": src,
+        "destination": dst,
+        "success": res.get("success", False),
+        "path": list(res.get("path", [])),
+        "hops": res.get("hops", 0),
+        "cost": float(res.get("path_cost", 0.0))
+    }
+    st.session_state["failure_lab_baseline"] = baseline
+    return baseline
+
+
+def compare_failure_routes(baseline: Optional[Dict[str, Any]], current_res: Dict[str, Any]) -> Dict[str, Any]:
+    """Compares baseline route vs failure route to provide precise recovery analytics."""
+    if not baseline:
+        return {
+            "status": "No Baseline",
+            "detour_hops": 0,
+            "detour_cost": 0.0,
+            "summary": "Capture a baseline route before simulating failures."
+        }
+
+    c_success = current_res.get("success", False)
+    b_path = baseline.get("path", [])
+    c_path = current_res.get("path", [])
+
+    if not c_success:
+        return {
+            "status": "Unreachable / Partitioned",
+            "original_path": b_path,
+            "current_path": [],
+            "detour_hops": 0,
+            "detour_cost": 0.0,
+            "summary": "Destination is completely unreachable! Network partition occurred."
+        }
+
+    detour_hops = current_res.get("hops", 0) - baseline.get("hops", 0)
+    detour_cost = current_res.get("path_cost", 0.0) - baseline.get("cost", 0.0)
+
+    if b_path == c_path:
+        status = "Original Optimal Route Active"
+        summary = "No detour needed. Current route matches healthy baseline."
+    else:
+        status = "Detour Discovered"
+        summary = f"Rerouted around failure (+{detour_hops} hops, +{int(detour_cost) if detour_cost.is_integer() else detour_cost} cost)."
+
+    return {
+        "status": status,
+        "original_path": b_path,
+        "current_path": c_path,
+        "detour_hops": detour_hops,
+        "detour_cost": detour_cost,
+        "summary": summary
+    }
+
+
+def export_experiment_report(res: Dict[str, Any], graph: Graph, algo: str, src: str, dst: str, format_type: str = "json") -> str:
+    """Generates an exportable CSV or JSON report based strictly on actual simulation metrics."""
+    if not res:
+        return "{}" if format_type == "json" else "Metric,Value\nStatus,No simulation results recorded"
+
+    algo_name = res.get("algorithm", algo)
+    path = res.get("path", [])
+    hops = res.get("hops", 0)
+    cost = res.get("path_cost", 0.0)
+    visited = res.get("visited", [])
+    success = res.get("success", False)
+    elapsed = res.get("execution_time_ms", 0.0)
+
+    if "BFS" in algo_name:
+        time_comp = "O(V + E)"
+        space_comp = "O(V) [Queue Capacity]"
+        ds_name = "FIFO Queue (collections.deque)"
+        rationale = "BFS guarantees minimum hops by expanding level by level."
+    elif "DFS" in algo_name:
+        time_comp = "O(V + E)"
+        space_comp = "O(V) [Stack Depth]"
+        ds_name = "LIFO Stack (list)"
+        rationale = "DFS traverses deep branches with backtracking; valid path without hop guarantee."
+    else:
+        time_comp = "O((V + E) log V)"
+        space_comp = "O(V) [Priority Queue]"
+        ds_name = "Min-Heap Priority Queue (heapq)"
+        rationale = "Dijkstra minimizes cumulative edge weights using greedy relaxation."
+
+    report_data = {
+        "project": "NetRoute — Interactive Network Routing Simulator",
+        "title": "Network Routing Experiment Report",
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "source": src,
+        "destination": dst,
+        "algorithm": algo_name,
+        "core_data_structure": ds_name,
+        "success": success,
+        "route_discovered": " -> ".join(path) if path else "None (Unreachable)",
+        "route_nodes": path,
+        "hop_count": hops,
+        "total_cost": cost,
+        "total_visited_routers": len(visited),
+        "visited_sequence": visited,
+        "total_execution_steps": len(res.get("steps", [])),
+        "execution_latency_ms": round(elapsed, 3),
+        "time_complexity": time_comp,
+        "auxiliary_space_complexity": space_comp,
+        "network_topology": {
+            "total_routers": len(graph.routers),
+            "online_routers": sum(1 for r in graph.routers.values() if r.is_online),
+            "total_connections": len(graph.get_edges()),
+            "failed_connections": len(graph.failed_edges)
+        },
+        "algorithmic_explanation": rationale
+    }
+
+    if format_type.lower() == "csv":
+        import io
+        import csv
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Metric", "Value"])
+        writer.writerow(["Project", report_data["project"]])
+        writer.writerow(["Timestamp", report_data["timestamp"]])
+        writer.writerow(["Source Node", report_data["source"]])
+        writer.writerow(["Destination Node", report_data["destination"]])
+        writer.writerow(["Algorithm", report_data["algorithm"]])
+        writer.writerow(["Data Structure", report_data["core_data_structure"]])
+        writer.writerow(["Route Discovered", report_data["route_discovered"]])
+        writer.writerow(["Hop Count", report_data["hop_count"]])
+        writer.writerow(["Total Path Cost", report_data["total_cost"]])
+        writer.writerow(["Visited Routers Count", report_data["total_visited_routers"]])
+        writer.writerow(["Visited Sequence", " -> ".join(visited)])
+        writer.writerow(["Total Steps", report_data["total_execution_steps"]])
+        writer.writerow(["Time Complexity", report_data["time_complexity"]])
+        writer.writerow(["Space Complexity", report_data["auxiliary_space_complexity"]])
+        writer.writerow(["Outcome", report_data["algorithmic_explanation"]])
+        return output.getvalue()
+
+    return json.dumps(report_data, indent=2)
+
+
+CHALLENGES = [
+    {
+        "id": 1,
+        "title": "Challenge 1: Queue Mechanics & Minimum Hops (CO1 & CO5)",
+        "question": "On the Reference LAN/WAN topology, which route from N1 to N7 will BFS discover first using its FIFO Queue?",
+        "options": [
+            "N1 -> N2 -> N4 -> N6 -> N7 (4 hops)",
+            "N1 -> N3 -> N5 -> N6 -> N7 (4 hops)",
+            "N1 -> N2 -> N3 -> N5 -> N6 -> N7 (5 hops)",
+            "N1 -> N1 (0 hops)"
+        ],
+        "correct_option": "N1 -> N2 -> N4 -> N6 -> N7 (4 hops)",
+        "preset": "reference",
+        "src": "N1",
+        "dst": "N7",
+        "algo": "BFS",
+        "explanation": "BFS uses a FIFO queue and visits neighbors in sorted alphabetical order. From N1, N2 is enqueued before N3. Therefore, N2's branch (N2 -> N4 -> N6 -> N7) reaches N7 at level 4 before the bottom branch is finalized."
+    },
+    {
+        "id": 2,
+        "title": "Challenge 2: Min-Hop vs. Min-Cost (Dijkstra vs. BFS)",
+        "question": "On the Weighted Comparison network, what is the key difference between the route chosen by BFS vs. Dijkstra from S to D?",
+        "options": [
+            "BFS chooses S -> A -> D (2 hops, cost 13); Dijkstra chooses S -> A -> B -> D (3 hops, cost 4)",
+            "Both BFS and Dijkstra choose the exact same 2-hop route S -> A -> D",
+            "Dijkstra chooses S -> A -> D because it has fewer hops than S -> A -> B -> D",
+            "BFS chooses S -> C -> B -> D with cost 6"
+        ],
+        "correct_option": "BFS chooses S -> A -> D (2 hops, cost 13); Dijkstra chooses S -> A -> B -> D (3 hops, cost 4)",
+        "preset": "weighted_diff",
+        "src": "S",
+        "dst": "D",
+        "algo": "Dijkstra",
+        "explanation": "BFS only minimizes edge hops, picking the 2-hop path S-A-D despite its heavy link cost of 12 (total: 13). Dijkstra computes cumulative edge weights (1 + 1 + 2 = 4), selecting the 3-hop path because 4 < 13."
+    },
+    {
+        "id": 3,
+        "title": "Challenge 3: Network Topology & Articulation Points",
+        "question": "On the Reference topology, if Switch B (N6) suffers a hardware failure, can Server A (N1) reach Server B (N7)?",
+        "options": [
+            "No, N6 is an articulation bridge for N7; N7 becomes completely unreachable",
+            "Yes, packets will automatically detour through Router 4 (N5)",
+            "Yes, packets will detour through Router 3 (N4)",
+            "Yes, via cyclic DFS backtracking"
+        ],
+        "correct_option": "No, N6 is an articulation bridge for N7; N7 becomes completely unreachable",
+        "preset": "reference",
+        "src": "N1",
+        "dst": "N7",
+        "algo": "BFS",
+        "explanation": "Switch B (N6) is the single gateway connected to Server B (N7). Disabling N6 isolates N7 into a disconnected component of size 1, making packet delivery impossible."
+    },
+    {
+        "id": 4,
+        "title": "Challenge 4: LIFO Stack Mechanics & Backtracking (CO1)",
+        "question": "During iterative Depth-First Search (DFS), what happens when the algorithm reaches a router with zero unvisited neighbors (a dead end)?",
+        "options": [
+            "It triggers backtracking by popping the top element of the LIFO stack to resume from the predecessor",
+            "It resets the visited array to allow cyclic loops",
+            "It terminates execution immediately with failure",
+            "It switches to BFS queue mode"
+        ],
+        "correct_option": "It triggers backtracking by popping the top element of the LIFO stack to resume from the predecessor",
+        "preset": "reference",
+        "src": "N1",
+        "dst": "N7",
+        "algo": "DFS",
+        "explanation": "In LIFO stack exploration, when a branch terminates at a dead end, DFS backtracks by popping stack entries until it uncovers a node with remaining unvisited edges."
+    }
+]
+
+
+def evaluate_challenge_answer(challenge_id: int, user_answer: str) -> Tuple[bool, str]:
+    """Validates user's answer against the actual challenge definition and algorithmic rules."""
+    for ch in CHALLENGES:
+        if ch["id"] == challenge_id:
+            is_correct = (user_answer.strip() == ch["correct_option"].strip())
+            return is_correct, ch["explanation"]
+    return False, "Challenge not found."
+

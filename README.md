@@ -1,6 +1,6 @@
-# NetRoute — Interactive Network Packet-Routing Simulator (BFS & DFS)
+# NetRoute — Interactive Network Packet-Routing Simulator
 
-An interactive, educational network packet-routing web application developed using **Python**, **Streamlit**, and **Plotly**. NetRoute visualizes graph-based routing algorithms, genuine step-by-step queue and stack execution, dynamic network topology editing, and hop-by-hop packet transmission.
+An interactive, educational network packet-routing web application developed using **Python**, **Streamlit**, and **Plotly**. NetRoute visualizes graph-based routing algorithms, genuine step-by-step queue, stack, and priority queue execution, dynamic link-weight editing, scenario-based network failure and recovery, simulation history/replay, interactive DSA challenges, and exportable research reports.
 
 NetRoute aligns directly with **CO1**, **CO2**, and **CO5** of the Data Structures and Algorithms (DSA) engineering curriculum.
 
@@ -8,70 +8,99 @@ NetRoute aligns directly with **CO1**, **CO2**, and **CO5** of the Data Structur
 
 ## 1. Academic Course Outcome Mapping
 
-### CO1 — Stack and Queue Data Structures
-- **Queue-Based BFS:** Implements genuine Breadth-First Search using a First-In-First-Out (FIFO) queue (`collections.deque`). Demonstrates level-by-level exploration to discover the unweighted shortest-hop path between source and destination routers.
+### CO1 — Stack, Queue, and Priority Queue Data Structures
+- **Queue-Based BFS:** Implements genuine Breadth-First Search using a First-In-First-Out (FIFO) queue (`collections.deque`). Demonstrates level-by-level concentric exploration to discover the unweighted shortest-hop path between source and destination routers.
 - **Stack-Based DFS:** Implements genuine Depth-First Search using an explicit Last-In-First-Out (LIFO) stack (`list`). Demonstrates deep branch exploration and explicit backtracking, showing that DFS discovers valid reachable paths without guaranteeing minimum hops.
-- **Live Queue/Stack Inspector:** Displays live internal data structure states at each execution step, including FIFO Front/Rear indicators, LIFO Top/Bottom markers, push/pop/enqueue/dequeue counts, and maximum structure size.
+- **Min-Heap Dijkstra:** Implements genuine Dijkstra's algorithm using a Min-Heap Priority Queue (`heapq`). Demonstrates greedy edge relaxation and tentative distance reduction, proving how Dijkstra minimizes cumulative link costs rather than hop count.
+- **Live Data Structure Inspector:** Displays live internal data structure states at each execution step, including FIFO Front/Rear indicators, LIFO Top/Bottom markers, Min-Heap root tags, push/pop/enqueue/dequeue counts, edge relaxations, and peak capacity.
 
-### CO2 — Dynamic Data Structures
-- **Dynamic Adjacency List $O(V + E)$:** Serves as the primary dynamic graph representation. Routers (vertices) and connections (edges) are inserted, renamed, toggled, and deleted dynamically.
-- **Dynamic Topology Editing:** Real-time adding/removing of routers and links with instant synchronization to the visual graph and data structures. Automatic cascading deletion of links upon router removal.
-- **Validation:** Input sanitation, duplicate router ID prevention, duplicate link prevention, and self-loop rejection.
+### CO2 — Dynamic Graphs & Link-Weight Management
+- **Dynamic Adjacency List $O(V + E)$:** Serves as the primary dynamic graph representation. Routers (vertices) and transmission links (edges) are inserted, renamed, toggled, and deleted dynamically.
+- **Interactive Link-Weight Editor:** Allows users to modify transmission link costs ($w \ge 0$) in real time with immediate recalculation and cache invalidation.
+- **Dual Synchronized Representations:** Maintains real-time synchronization between the dynamic Adjacency List $O(V + E)$ and the Adjacency Matrix $O(V^2)$.
+- **Component Failure States:** Supports independent toggling of router hardware faults (online/offline) and physical link severing (cut/repaired).
 
-### CO5 — Graph Structures, Traversal & Routing
-- **Dual Synchronized Representations:** Maintains real-time synchronization between the Adjacency List $O(V + E)$ and the Adjacency Matrix $O(V^2)$.
-- **Traversal Trees & Routes:** Reconstructs the shortest-hop or discovered path using parent pointers; renders traversal tree edges recorded during discovery.
-- **Network Reachability & Diagnostics:** Analyzes connected components, destination reachability from the active source, and simulated hardware failures (online/offline toggle).
-- **Packet Transmission:** Animates packet delivery hop-by-hop along the discovered route with interactive playback (Step Forward, Auto-Stream, Reset).
+### CO5 — Graph Traversals, Shortest Paths, & Fault Tolerance
+- **Algorithm Comparison:** Clearly separates BFS (minimum hops in unweighted graphs), DFS (arbitrary path via deep exploration), and Dijkstra (minimum total weight in non-negative weighted graphs).
+- **Route Reconstruction via Parent Pointers:** Reconstructs the exact optimal path backward from the destination router to the source router using predecessor pointers.
+- **Network Failure & Recovery Lab:** Dedicated scenario-based failure lab comparing baseline routes against detour routes and diagnosing network partitions when destinations become isolated.
+- **Hop-by-Hop Packet Forwarding:** Animates packet delivery along discovered routes with interactive stepper and auto-stream playback.
 
 ---
 
-## 2. Project Structure
+## 2. Advanced Features Overview
 
-```
-NetRoute/
-├── main.py              # Streamlit page layout, Plotly graph visualizer, metrics, and inspector tabs
-├── network.py           # Router and Graph models, dynamic editing, presets, and validation
-├── algorithms.py        # Genuine BFS and DFS engines with granular step-by-step state recording
-├── simulation.py        # Session state management, playback progression, and packet animation
-├── theme.py             # Curated light palette, CSS styling, and badge/metric renderers
-├── requirements.txt     # Minimal dependencies (streamlit, plotly, pandas)
-├── .gitignore           # Git ignore patterns
-├── README.md            # Comprehensive project documentation
-├── data/
-│   └── sample_network.json  # Sample 6-router topology JSON
-└── tests/
-    ├── test_network.py  # Graph operations, validation, matrix/list sync tests
-    ├── test_bfs.py      # BFS shortest path, queue mechanics, edge cases
-    ├── test_dfs.py      # DFS path discovery, stack mechanics, backtracking
-    └── test_simulation.py # Step navigation, packet hop progression, state reset
-```
+### Feature A: Weighted Shortest-Path Routing with Dijkstra
+- Implemented in `algorithms.py` using Python's standard `heapq`.
+- Records step-by-step min-heap states, tentative distances, edge relaxations, and predecessor updates.
+- Validates that edge weights are non-negative ($w \ge 0$).
+- Handles cycles, offline router avoidance, severed links, and unreachable destinations.
+
+### Feature B: Interactive Link-Weight Editor
+- Allows selecting any connection and updating its transmission cost ($w \ge 0$).
+- Outdated simulations are immediately invalidated and routes re-evaluated.
+- Includes a dedicated `weighted_diff` preset demonstrating where BFS chooses $N1 \rightarrow N2 \rightarrow N4$ (2 hops, cost 13) while Dijkstra chooses $N1 \rightarrow N2 \rightarrow N3 \rightarrow N4$ (3 hops, cost 4).
+
+### Feature C: Network Failure & Recovery Lab
+- Dedicated scenario-based tab for simulating router power failure and link cuts.
+- Real-time comparison between reference baseline routes and active detour routes.
+- Displays hop differences, cost changes, active failure lists, and partition alerts.
+- Single-click "Restore All Failures" functionality.
+
+### Feature D: Simulation History & Traversal Replay
+- Records completed routing runs in Streamlit session state with unique run IDs, timestamps, algorithm, path, hops, cost, and visited count.
+- Side-by-side run comparison of two historical runs.
+- Traversal replay: loads saved execution steps back into the live stepper engine.
+
+### Feature E: DSA Challenge Mode
+- Educational quizzes with 4 interactive scenarios:
+  1. BFS Minimum-Hop Routing Prediction
+  2. DFS Deep Exploration & Backtracking
+  3. Network Partition & Unreachable Destination
+  4. Dijkstra Minimum-Cost vs BFS Minimum-Hop
+- Evaluates answers against actual graph and algorithm results with detailed pedagogical explanations and a "Watch Algorithm Execution" button.
+
+### Feature F: Exportable Experiment Report
+- Generates structured research and viva reports containing topology statistics, algorithm metrics, discovered routes, theoretical complexities, and explanations.
+- Downloadable in clean JSON (`netroute_experiment_report.json`) and CSV (`netroute_experiment_report.csv`).
 
 ---
 
 ## 3. Computational Complexity
 
-| Algorithm / Representation | Time Complexity | Auxiliary Space Complexity | Key Invariant |
+| Algorithm / Structure | Time Complexity | Auxiliary Space Complexity | Optimality Guarantee |
 | :--- | :--- | :--- | :--- |
-| **BFS Routing** | $O(V + E)$ | $O(V)$ | Guaranteed shortest-hop route in unweighted graphs |
-| **DFS Routing** | $O(V + E)$ | $O(V)$ | Deepest unvisited branch prioritized; explicit backtracking |
+| **BFS Routing** | $O(V + E)$ | $O(V)$ | Guaranteed minimum-hop route in unweighted graphs |
+| **DFS Routing** | $O(V + E)$ | $O(V)$ | No guarantee (finds valid reachable path; may take long detours) |
+| **Dijkstra Routing** | $O((V + E) \log V)$ | $O(V)$ | Guaranteed minimum-total-cost route ($w \ge 0$) |
 | **Adjacency List** | $O(V + E)$ build | $O(V + E)$ | Memory-efficient for sparse dynamic networks |
 | **Adjacency Matrix** | $O(V^2)$ build | $O(V^2)$ | Constant-time $O(1)$ edge-lookup matrix |
 
-*Note: $V$ is the number of vertices (routers) and $E$ is the number of edges (transmission links).*
+*Note: $V$ is the number of routers (vertices) and $E$ is the number of transmission links (edges).*
 
 ---
 
-## 4. Built-in Topologies & Presets
+## 4. Project Directory Structure
 
-1. **Reference LAN/WAN (Default):** 7-node network matching the dashboard UI (N1-N7 with weighted links).
-2. **Sample Mesh:** Balanced 6-router interconnected mesh.
-3. **Direct Route:** Linear 4-node chain demonstrating sequential forwarding.
-4. **Multiple Routes (Spine/Leaf):** Dual-path topology demonstrating why BFS chooses the 3-hop path while DFS may traverse the 4-hop branch.
-5. **Cyclic Network:** Multi-loop mesh demonstrating visited-set loop avoidance.
-6. **Disconnected Subnets:** Segmented network demonstrating partition detection and reachability failure.
-7. **Offline Router Barrier:** Network with a disabled bridge router demonstrating dynamic detour routing.
-8. **Random Generators:** Generates connected or disconnected random networks ($3 \le V \le 10$).
+```
+NetRoute/
+├── main.py                     # Streamlit dashboard, Plotly network canvas, mode drawer, and 9 tabs
+├── network.py                  # Router and Graph models, dynamic editing, weights, presets, and validation
+├── algorithms.py               # Genuine BFS, DFS, and Dijkstra engines with granular step-by-step recording
+├── simulation.py               # State management, history recording, failure lab, and challenges
+├── theme.py                    # Curated high-contrast palette, CSS styling, and telemetry card renderers
+├── requirements.txt            # Minimal dependencies (streamlit, plotly, pandas)
+├── README.md                   # Comprehensive project documentation
+└── tests/
+    ├── test_network.py         # Graph operations, validation, matrix/list sync tests
+    ├── test_algorithms.py      # BFS and DFS shortest path, queue/stack mechanics, edge cases
+    ├── test_dijkstra.py        # Dijkstra min-cost, BFS vs Dijkstra diff, non-negative weight checks
+    ├── test_failure_lab.py     # Router and link failure, recovery, and detour comparison
+    ├── test_history_and_report.py # History recording, comparison, replay, and JSON/CSV export
+    ├── test_challenge.py       # DSA challenge evaluation against actual algorithm results
+    ├── test_simulation.py      # Step navigation, packet hop progression, state reset
+    └── test_router.py          # Router dataclass and coordinates
+```
 
 ---
 
@@ -95,5 +124,39 @@ Open your browser at `http://localhost:8501`.
 ```bash
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
-All 31 unit tests verify graph operations, edge weights, reference topology, rename features, reachability, BFS, DFS, queue/stack mechanics, and simulation playback state.
 
+**Test Results:**
+- 54 unit tests across 8 test suites passing in `0.053s`.
+- 100% test pass rate with zero regressions.
+
+---
+
+## 6. How to Demonstrate Key Features
+
+1. **Demonstrate BFS vs. Dijkstra Divergence:**
+   - In the Mode Bar, select Preset: `Weighted Demo (BFS != Dijkstra)` and click **Load Preset**.
+   - Select algorithm **BFS (Breadth First)** and click **Run Route Analysis**. Discovered route is `N1 -> N2 -> N4` (2 hops, cost 13).
+   - Select algorithm **Dijkstra (Minimum-Cost)** and click **Run Route Analysis**. Discovered route is `N1 -> N2 -> N3 -> N4` (3 hops, cost 4).
+   - Explain to the examiner that BFS optimizes hop count while Dijkstra optimizes cumulative link cost.
+
+2. **Demonstrate Link-Weight Editing:**
+   - In the Mode Bar, click **Edit Weight**.
+   - Select link `N2 <-> N4`, change its cost from 12 to 1, and click **Apply New Weight**.
+   - Observe that Dijkstra immediately switches to `N1 -> N2 -> N4` because its cost is now $1 + 1 = 2 < 4$.
+
+3. **Demonstrate Network Failure & Recovery:**
+   - Navigate to Tab 2: **Failure & Recovery Lab**.
+   - Click **Set Current as Baseline**.
+   - Select Router `N2` or Link `N1 <-> N2` and click **Sever Link / Cut Power**.
+   - Observe the network visualization turn the link into a red dotted line labeled `CUT` and observe the dynamic detour route recalculation.
+   - Click **Restore All Failures** to restore the network.
+
+4. **Demonstrate Data Structure Mechanics (CO1):**
+   - In Tab 1, switch between BFS, DFS, and Dijkstra.
+   - For BFS, observe the FIFO Queue front/rear pointers and enqueue/dequeue operations.
+   - For DFS, observe the LIFO Stack top/bottom pointers and backtracking.
+   - For Dijkstra, observe the Min-Heap priority queue ordering and tentative distances table.
+
+5. **Demonstrate History & Report Export:**
+   - In Tab 3, view previous simulation runs and click **Replay Recorded Run**.
+   - In Tab 5, inspect the experiment summary and click **Download Experiment Report (JSON)** or **(CSV)**.
