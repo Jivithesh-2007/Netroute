@@ -603,6 +603,8 @@ CHALLENGES = [
     {
         "id": 1,
         "title": "Challenge 1: Queue Mechanics & Minimum Hops (CO1 & CO5)",
+        "difficulty": "Beginner",
+        "description": "Analyze FIFO queue level-by-level concentric expansion on the standard 7-node network.",
         "question": "On the Reference LAN/WAN topology, which route from N1 to N7 will BFS discover first using its FIFO Queue?",
         "options": [
             "N1 -> N2 -> N4 -> N6 -> N7 (4 hops)",
@@ -614,12 +616,16 @@ CHALLENGES = [
         "preset": "reference",
         "src": "N1",
         "dst": "N7",
+        "source": "N1",
+        "dest": "N7",
         "algo": "BFS",
         "explanation": "BFS uses a FIFO queue and visits neighbors in sorted alphabetical order. From N1, N2 is enqueued before N3. Therefore, N2's branch (N2 -> N4 -> N6 -> N7) reaches N7 at level 4 before the bottom branch is finalized."
     },
     {
         "id": 2,
         "title": "Challenge 2: Min-Hop vs. Min-Cost (Dijkstra vs. BFS)",
+        "difficulty": "Intermediate",
+        "description": "Compare minimum-hop unweighted routing against minimum-total-cost weighted routing.",
         "question": "On the Weighted Comparison network, what is the key difference between the route chosen by BFS vs. Dijkstra from S to D?",
         "options": [
             "BFS chooses S -> A -> D (2 hops, cost 13); Dijkstra chooses S -> A -> B -> D (3 hops, cost 4)",
@@ -631,12 +637,16 @@ CHALLENGES = [
         "preset": "weighted_diff",
         "src": "S",
         "dst": "D",
+        "source": "S",
+        "dest": "D",
         "algo": "Dijkstra",
         "explanation": "BFS only minimizes edge hops, picking the 2-hop path S-A-D despite its heavy link cost of 12 (total: 13). Dijkstra computes cumulative edge weights (1 + 1 + 2 = 4), selecting the 3-hop path because 4 < 13."
     },
     {
         "id": 3,
         "title": "Challenge 3: Network Topology & Articulation Points",
+        "difficulty": "Advanced",
+        "description": "Determine how component failure affects reachability and graph cut articulation.",
         "question": "On the Reference topology, if Switch B (N6) suffers a hardware failure, can Server A (N1) reach Server B (N7)?",
         "options": [
             "No, N6 is an articulation bridge for N7; N7 becomes completely unreachable",
@@ -648,12 +658,16 @@ CHALLENGES = [
         "preset": "reference",
         "src": "N1",
         "dst": "N7",
+        "source": "N1",
+        "dest": "N7",
         "algo": "BFS",
         "explanation": "Switch B (N6) is the single gateway connected to Server B (N7). Disabling N6 isolates N7 into a disconnected component of size 1, making packet delivery impossible."
     },
     {
         "id": 4,
         "title": "Challenge 4: LIFO Stack Mechanics & Backtracking (CO1)",
+        "difficulty": "Intermediate",
+        "description": "Analyze LIFO stack backtracking mechanics when a dead end is reached.",
         "question": "During iterative Depth-First Search (DFS), what happens when the algorithm reaches a router with zero unvisited neighbors (a dead end)?",
         "options": [
             "It triggers backtracking by popping the top element of the LIFO stack to resume from the predecessor",
@@ -665,6 +679,8 @@ CHALLENGES = [
         "preset": "reference",
         "src": "N1",
         "dst": "N7",
+        "source": "N1",
+        "dest": "N7",
         "algo": "DFS",
         "explanation": "In LIFO stack exploration, when a branch terminates at a dead end, DFS backtracks by popping stack entries until it uncovers a node with remaining unvisited edges."
     }

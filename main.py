@@ -1181,11 +1181,11 @@ with tab_challenges:
     sub_c1, sub_c2 = st.columns(2)
     with sub_c1:
         if st.button("Submit Answer", type="primary", width="stretch", key="submit_challenge_btn"):
-            eval_res = sim.evaluate_challenge_answer(sel_c_id, user_ans, graph)
-            if eval_res["correct"]:
-                st.success(f"**Correct!** {eval_res['explanation']}")
+            is_ok, expl = sim.evaluate_challenge_answer(sel_c_id, user_ans)
+            if is_ok:
+                st.success(f"**Correct!** {expl}")
             else:
-                st.error(f"**Incorrect.** {eval_res['explanation']}\n\nExpected: `{eval_res['expected']}`")
+                st.error(f"**Incorrect.** {expl}\n\nExpected: `{challenge['correct_option']}`")
 
     with sub_c2:
         if st.button("Watch Algorithm Execution", width="stretch", key="watch_challenge_btn"):
