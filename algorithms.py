@@ -1,11 +1,10 @@
 """
-algorithms.py — Genuine BFS and DFS Graph Routing Algorithms.
+algorithms.py — Routing Traversal, Searching, Sorting, and Tree Structure Algorithms.
 
-Demonstrates:
-- CO1: Stack and Queue Data Structures (FIFO Queue vs. LIFO Stack).
-- CO5: Graph Traversal, Traversal Trees, and Shortest-Hop Routing.
-
-Both algorithms record step-by-step internal states for the interactive visualizer.
+Integrated Course Outcomes:
+- CO3: Searching (Linear vs. Binary) and Sorting (Bubble vs. Insertion) Algorithm Evaluation.
+- CO4: Routing Traversal Spanning Tree Structure from Parent Pointers.
+- CO5: Graph Traversals (BFS, DFS, Dijkstra) and Route Reconstruction.
 """
 
 import time
@@ -1093,4 +1092,385 @@ def dijkstra(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "execution_time_ms": elapsed,
         "message": f"Minimum-cost route discovered: {' -> '.join(path)} (cost: {int(final_cost) if final_cost.is_integer() else final_cost}, {len(path) - 1} hops)."
     }
+
+
+# =============================================================================
+# CO3: SEARCHING ALGORITHM EVALUATION
+# =============================================================================
+
+def linear_search(dataset: List[str], target: str) -> Dict[str, Any]:
+    """
+    Performs Linear Search on an unsorted or sorted list of router IDs.
+    
+    Theoretical Time Complexity: O(n) worst/average, O(1) best case.
+    Space Complexity: O(1) auxiliary space.
+    
+    Examines each element sequentially from index 0 to n - 1 until the
+    target router ID is found or the end of the dataset is reached.
+    """
+    start_time = time.perf_counter()
+    target_clean = str(target).strip().upper()
+    comparisons = 0
+    found = False
+    found_idx = -1
+    steps: List[Dict[str, Any]] = []
+
+    for i, item in enumerate(dataset):
+        comparisons += 1
+        curr_val = str(item).strip().upper()
+        is_match = (curr_val == target_clean)
+        steps.append({
+            "step": i + 1,
+            "index": i,
+            "value": curr_val,
+            "target": target_clean,
+            "matched": is_match,
+            "comparisons": comparisons,
+            "description": f"Index {i}: Compared '{curr_val}' with target '{target_clean}' -> {'MATCH' if is_match else 'NO MATCH'}"
+        })
+        if is_match:
+            found = True
+            found_idx = i
+            break
+
+    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+
+    return {
+        "algorithm": "Linear Search",
+        "dataset_size": len(dataset),
+        "target": target_clean,
+        "found": found,
+        "index": found_idx,
+        "comparisons": comparisons,
+        "execution_time_ms": elapsed_ms,
+        "theoretical_complexity": "O(n)",
+        "best_case": "O(1)",
+        "worst_case": "O(n)",
+        "requires_sorted": False,
+        "steps": steps,
+        "message": f"Target '{target_clean}' {'found at index ' + str(found_idx) if found else 'not found'} in {comparisons} comparison(s)."
+    }
+
+
+def binary_search(sorted_dataset: List[str], target: str, verify_sorted: bool = True) -> Dict[str, Any]:
+    """
+    Performs Binary Search on a sorted list of router IDs.
+    
+    Theoretical Time Complexity: O(log n) worst/average, O(1) best case.
+    Space Complexity: O(1) auxiliary space.
+    
+    Requires data to be sorted because it uses divide-and-conquer:
+    comparing the target with the middle element eliminates half of the
+    remaining search space in every step.
+    """
+    start_time = time.perf_counter()
+    target_clean = str(target).strip().upper()
+    comparisons = 0
+    found = False
+    found_idx = -1
+    steps: List[Dict[str, Any]] = []
+
+    # Format list values cleanly for consistent comparison
+    clean_data = [str(x).strip().upper() for x in sorted_dataset]
+
+    # Verify sorted precondition
+    is_sorted = True
+    if verify_sorted and len(clean_data) > 1:
+        for i in range(len(clean_data) - 1):
+            if clean_data[i] > clean_data[i + 1]:
+                is_sorted = False
+                break
+
+    if not is_sorted:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        return {
+            "algorithm": "Binary Search",
+            "dataset_size": len(clean_data),
+            "target": target_clean,
+            "found": False,
+            "index": -1,
+            "comparisons": 0,
+            "execution_time_ms": elapsed_ms,
+            "theoretical_complexity": "O(log n)",
+            "best_case": "O(1)",
+            "worst_case": "O(log n)",
+            "requires_sorted": True,
+            "steps": [],
+            "error": "Dataset is not sorted. Binary search requires sorted input to eliminate halves deterministically.",
+            "message": "Error: Binary Search failed because input dataset is unsorted."
+        }
+
+    low = 0
+    high = len(clean_data) - 1
+    step_num = 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        mid_val = clean_data[mid]
+        comparisons += 1
+
+        if mid_val == target_clean:
+            found = True
+            found_idx = mid
+            steps.append({
+                "step": step_num,
+                "low": low,
+                "high": high,
+                "mid": mid,
+                "mid_value": mid_val,
+                "action": "MATCH",
+                "comparisons": comparisons,
+                "description": f"Step {step_num}: Mid index {mid} ('{mid_val}') matches target '{target_clean}'."
+            })
+            break
+        elif mid_val < target_clean:
+            steps.append({
+                "step": step_num,
+                "low": low,
+                "high": high,
+                "mid": mid,
+                "mid_value": mid_val,
+                "action": "GO_RIGHT",
+                "comparisons": comparisons,
+                "description": f"Step {step_num}: Mid '{mid_val}' < target '{target_clean}'. Eliminating left half; moving low to {mid + 1}."
+            })
+            low = mid + 1
+        else:
+            steps.append({
+                "step": step_num,
+                "low": low,
+                "high": high,
+                "mid": mid,
+                "mid_value": mid_val,
+                "action": "GO_LEFT",
+                "comparisons": comparisons,
+                "description": f"Step {step_num}: Mid '{mid_val}' > target '{target_clean}'. Eliminating right half; moving high to {mid - 1}."
+            })
+            high = mid - 1
+        step_num += 1
+
+    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+
+    return {
+        "algorithm": "Binary Search",
+        "dataset_size": len(clean_data),
+        "target": target_clean,
+        "found": found,
+        "index": found_idx,
+        "comparisons": comparisons,
+        "execution_time_ms": elapsed_ms,
+        "theoretical_complexity": "O(log n)",
+        "best_case": "O(1)",
+        "worst_case": "O(log n)",
+        "requires_sorted": True,
+        "steps": steps,
+        "message": f"Target '{target_clean}' {'found at sorted index ' + str(found_idx) if found else 'not found'} in {comparisons} comparison(s)."
+    }
+
+
+# =============================================================================
+# CO3: SORTING ALGORITHM EVALUATION
+# =============================================================================
+
+def bubble_sort(dataset: List[str]) -> Dict[str, Any]:
+    """
+    Performs Bubble Sort on a list of router IDs.
+    
+    Theoretical Time Complexity: O(n^2) worst/average, O(n) best case (with early exit).
+    Space Complexity: O(1) auxiliary space (in-place on copy).
+    
+    Repeatedly steps through the list, compares adjacent elements, and swaps
+    them if they are in the wrong order until no swaps are needed.
+    """
+    start_time = time.perf_counter()
+    arr = [str(x).strip().upper() for x in dataset]
+    n = len(arr)
+    comparisons = 0
+    swaps = 0
+    pass_logs: List[Dict[str, Any]] = []
+
+    for i in range(n):
+        swapped_in_pass = False
+        for j in range(0, n - i - 1):
+            comparisons += 1
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+                swaps += 1
+                swapped_in_pass = True
+        pass_logs.append({
+            "pass": i + 1,
+            "array_state": list(arr),
+            "swapped": swapped_in_pass
+        })
+        if not swapped_in_pass:
+            break
+
+    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+    expected_sorted = sorted([str(x).strip().upper() for x in dataset])
+    is_correct = (arr == expected_sorted)
+
+    return {
+        "algorithm": "Bubble Sort",
+        "input_size": n,
+        "original_data": [str(x).strip().upper() for x in dataset],
+        "sorted_data": arr,
+        "comparisons": comparisons,
+        "swaps": swaps,
+        "passes": len(pass_logs),
+        "execution_time_ms": elapsed_ms,
+        "theoretical_complexity": "O(n²)",
+        "best_case": "O(n)",
+        "worst_case": "O(n²)",
+        "is_correct": is_correct,
+        "pass_logs": pass_logs,
+        "message": f"Bubble Sort completed in {comparisons} comparisons and {swaps} swaps. Correctness verified: {is_correct}."
+    }
+
+
+def insertion_sort(dataset: List[str]) -> Dict[str, Any]:
+    """
+    Performs Insertion Sort on a list of router IDs.
+    
+    Theoretical Time Complexity: O(n^2) worst/average, O(n) best case (for already sorted data).
+    Space Complexity: O(1) auxiliary space (in-place on copy).
+    
+    Builds the sorted array one item at a time by picking the next element
+    and shifting larger elements one position to the right to insert it.
+    """
+    start_time = time.perf_counter()
+    arr = [str(x).strip().upper() for x in dataset]
+    n = len(arr)
+    comparisons = 0
+    shifts = 0
+    pass_logs: List[Dict[str, Any]] = []
+
+    for i in range(1, n):
+        key = arr[i]
+        j = i - 1
+        while j >= 0:
+            comparisons += 1
+            if arr[j] > key:
+                arr[j + 1] = arr[j]
+                shifts += 1
+                j -= 1
+            else:
+                break
+        arr[j + 1] = key
+        pass_logs.append({
+            "iteration": i,
+            "inserted_key": key,
+            "inserted_at": j + 1,
+            "array_state": list(arr)
+        })
+
+    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+    expected_sorted = sorted([str(x).strip().upper() for x in dataset])
+    is_correct = (arr == expected_sorted)
+
+    return {
+        "algorithm": "Insertion Sort",
+        "input_size": n,
+        "original_data": [str(x).strip().upper() for x in dataset],
+        "sorted_data": arr,
+        "comparisons": comparisons,
+        "shifts": shifts,
+        "swaps": shifts,
+        "iterations": len(pass_logs),
+        "execution_time_ms": elapsed_ms,
+        "theoretical_complexity": "O(n²)",
+        "best_case": "O(n)",
+        "worst_case": "O(n²)",
+        "is_correct": is_correct,
+        "pass_logs": pass_logs,
+        "message": f"Insertion Sort completed in {comparisons} comparisons and {shifts} shifts. Correctness verified: {is_correct}."
+    }
+
+
+# =============================================================================
+# CO4: ROUTING TRAVERSAL TREE STRUCTURE
+# =============================================================================
+
+def build_traversal_tree(parents: Dict[str, Optional[str]], src: str, dst: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Constructs a genuine Traversal Spanning Tree from the parent relationships
+    recorded during BFS or DFS graph traversal.
+    
+    CO4 Properties Satisfied:
+    1. Exactly one root node: the source router 'src'.
+    2. Each reachable non-root router has exactly one parent in the tree.
+    3. Traversal tree is strictly acyclic (no cycles) even if the network graph has cycles.
+    4. Unreachable vertices are completely excluded from the tree.
+    5. Tree edges represent the exact discovery transitions during traversal.
+    6. Reconstructs root-to-destination path along tree edges.
+    """
+    src_clean = str(src).strip().upper()
+    dst_clean = str(dst).strip().upper() if dst else None
+
+    if not parents or src_clean not in parents:
+        return {
+            "root": src_clean,
+            "nodes": [],
+            "edges": [],
+            "levels": {},
+            "children": {},
+            "path_to_dest": [],
+            "is_acyclic": True,
+            "node_count": 0,
+            "edge_count": 0,
+            "reachable": False,
+            "message": f"Source '{src_clean}' has no recorded traversal parent data."
+        }
+
+    children_map: Dict[str, List[str]] = {node: [] for node in parents.keys()}
+    edges: List[Tuple[str, str]] = []
+    
+    for child, parent in parents.items():
+        if parent is not None:
+            if parent in children_map:
+                children_map[parent].append(child)
+            else:
+                children_map[parent] = [child]
+            edges.append((parent, child))
+
+    levels: Dict[str, int] = {src_clean: 0}
+    q = deque([src_clean])
+    visited_in_tree = {src_clean}
+    has_cycle = False
+
+    while q:
+        curr = q.popleft()
+        curr_level = levels[curr]
+        for ch in children_map.get(curr, []):
+            if ch in visited_in_tree:
+                has_cycle = True
+            else:
+                visited_in_tree.add(ch)
+                levels[ch] = curr_level + 1
+                q.append(ch)
+
+    dest_path: List[str] = []
+    if dst_clean and dst_clean in parents:
+        curr_dest = dst_clean
+        while curr_dest is not None:
+            dest_path.append(curr_dest)
+            curr_dest = parents.get(curr_dest)
+        dest_path.reverse()
+
+    nodes_list = sorted(list(visited_in_tree), key=lambda x: (levels.get(x, 999), x))
+
+    return {
+        "root": src_clean,
+        "nodes": nodes_list,
+        "edges": edges,
+        "levels": levels,
+        "children": children_map,
+        "path_to_dest": dest_path,
+        "is_acyclic": not has_cycle,
+        "node_count": len(nodes_list),
+        "edge_count": len(edges),
+        "reachable": bool(dst_clean in visited_in_tree) if dst_clean else True,
+        "max_depth": max(levels.values()) if levels else 0,
+        "message": f"Constructed traversal tree with root '{src_clean}', {len(nodes_list)} nodes, and {len(edges)} tree edges."
+    }
+
 

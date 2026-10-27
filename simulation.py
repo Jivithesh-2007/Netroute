@@ -312,16 +312,20 @@ def record_history_entry(res: Dict[str, Any], graph: Graph, algo: str, src: str,
         "timestamp": time.strftime("%H:%M:%S"),
         "algorithm": algo_clean,
         "source": src,
+        "dest": dst,
         "destination": dst,
         "topology": f"{len(graph.routers)} Routers, {len(graph.get_edges())} Links",
+        "path": list(res.get("path", [])),
         "route": list(res.get("path", [])),
         "route_str": " -> ".join(res.get("path", [])) if res.get("path") else "No Route",
         "hops": res.get("hops", 0),
         "cost": float(res.get("path_cost", 0.0)),
+        "visited": list(res.get("visited", [])),
         "visited_count": len(res.get("visited", [])),
         "operations": ops_count,
         "success": bool(res.get("success", False)),
         "steps_count": len(res.get("steps", [])),
+        "execution_time_ms": float(res.get("execution_time_ms", 0.0)),
         "full_res": res
     }
     history.append(entry)
@@ -839,4 +843,205 @@ def compare_bfs_and_dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "hop_comparison": hop_comparison,
         "comparison_table": comparison_table
     }
+
+
+# =============================================================================
+# CO5: TRADITIONAL ROUTING TABLE FORWARDING ENGINE
+# =============================================================================
+
+def simulate_table_forwarding(graph: Graph, src: str, dst: str, max_hops: int = 25) -> Dict[str, Any]:
+    """
+    Simulates traditional hop-by-hop packet forwarding using local router routing tables.
+    
+    Demonstrates the fundamental networking distinction required by CO5:
+    - Graph-Based Routing: Centralized end-to-end path computation using graph traversal (BFS/DFS).
+    - Table-Based Forwarding: Distributed hop-by-hop forwarding where each router independently
+      looks up the packet's destination in its local routing table to determine the Next Hop.
+    """
+    src_clean = str(src).strip().upper()
+    dst_clean = str(dst).strip().upper()
+
+    if not graph or not graph.routers:
+        return {
+            "success": False,
+            "status": "EMPTY_GRAPH",
+            "path": [],
+            "hops": 0,
+            "steps": [],
+            "message": "Network graph is empty."
+        }
+
+    if src_clean not in graph.routers:
+        return {
+            "success": False,
+            "status": "SOURCE_NOT_FOUND",
+            "path": [],
+            "hops": 0,
+            "steps": [],
+            "message": f"Source router '{src_clean}' does not exist in the network."
+        }
+
+    if dst_clean not in graph.routers:
+        return {
+            "success": False,
+            "status": "DEST_NOT_FOUND",
+            "path": [],
+            "hops": 0,
+            "steps": [],
+            "message": f"Destination router '{dst_clean}' does not exist in the network."
+        }
+
+    if not graph.routers[src_clean].is_online:
+        return {
+            "success": False,
+            "status": "SOURCE_OFFLINE",
+            "path": [src_clean],
+            "hops": 0,
+            "steps": [],
+            "message": f"Source router '{src_clean}' is offline. Cannot initiate packet transmission."
+        }
+
+    if not graph.routers[dst_clean].is_online:
+        return {
+            "success": False,
+            "status": "DEST_OFFLINE",
+            "path": [src_clean],
+            "hops": 0,
+            "steps": [],
+            "message": f"Destination router '{dst_clean}' is offline."
+        }
+
+    # Handle immediate local delivery (source equals destination)
+    if src_clean == dst_clean:
+        return {
+            "success": True,
+            "status": "DELIVERED_LOCAL",
+            "path": [src_clean],
+            "hops": 0,
+            "steps": [{
+                "step": 1,
+                "current_router": src_clean,
+                "next_hop": src_clean,
+                "action": "LOCAL_DELIVERY",
+                "table_entry": {"destination": dst_clean, "next_hop": src_clean, "hops": 0, "status": "Local (Self)"},
+                "description": f"Source '{src_clean}' is the destination. Packet processed locally."
+            }],
+            "message": f"Packet processed locally at router '{src_clean}' (0 hops)."
+        }
+
+    curr = src_clean
+    path: List[str] = [curr]
+    steps: List[Dict[str, Any]] = []
+    visited_set: Set[str] = {curr}
+    step_num = 1
+    success = False
+    status = "IN_PROGRESS"
+    failure_message = ""
+
+    while curr != dst_clean and step_num <= max_hops:
+        # Inspect current router's local routing table
+        curr_table = graph.generate_routing_table(curr)
+        matching_entry = next((e for e in curr_table if e["destination"] == dst_clean), None)
+
+        if not matching_entry or matching_entry["next_hop"] in ("None", None) or matching_entry["hops"] < 0:
+            status = "NO_ROUTE_TO_HOST"
+            failure_message = f"Router '{curr}' routing table has NO ROUTE to destination '{dst_clean}'."
+            steps.append({
+                "step": step_num,
+                "current_router": curr,
+                "next_hop": "None",
+                "action": "FORWARDING_FAILED",
+                "table_entry": matching_entry or {"destination": dst_clean, "next_hop": "None", "hops": -1, "status": "Unreachable"},
+                "description": failure_message
+            })
+            break
+
+        nxt = matching_entry["next_hop"]
+
+        # Verify next hop router is online
+        if nxt not in graph.routers or not graph.routers[nxt].is_online:
+            status = "NEXT_HOP_OFFLINE"
+            failure_message = f"Forwarding failure at '{curr}': Next Hop router '{nxt}' is offline."
+            steps.append({
+                "step": step_num,
+                "current_router": curr,
+                "next_hop": nxt,
+                "action": "NEXT_HOP_DOWN",
+                "table_entry": matching_entry,
+                "description": failure_message
+            })
+            break
+
+        # Verify link (curr, nxt) is active in topology
+        if not graph.is_edge_active(curr, nxt):
+            status = "LINK_SEVERED"
+            failure_message = f"Forwarding failure at '{curr}': Physical link ({curr} <-> {nxt}) is failed/severed."
+            steps.append({
+                "step": step_num,
+                "current_router": curr,
+                "next_hop": nxt,
+                "action": "LINK_DOWN",
+                "table_entry": matching_entry,
+                "description": failure_message
+            })
+            break
+
+        # Check for routing loop
+        if nxt in visited_set:
+            status = "ROUTING_LOOP"
+            failure_message = f"Routing loop detected: packet forwarded back to previously visited router '{nxt}'."
+            steps.append({
+                "step": step_num,
+                "current_router": curr,
+                "next_hop": nxt,
+                "action": "LOOP_DETECTED",
+                "table_entry": matching_entry,
+                "description": failure_message
+            })
+            break
+
+        # Advance packet to next hop
+        steps.append({
+            "step": step_num,
+            "current_router": curr,
+            "next_hop": nxt,
+            "action": "FORWARD",
+            "table_entry": matching_entry,
+            "description": f"Hop {step_num}: Router '{curr}' looked up destination '{dst_clean}' in its routing table -> forwarded to Next Hop '{nxt}' ({matching_entry['hops']} metric hops)."
+        })
+
+        curr = nxt
+        path.append(curr)
+        visited_set.add(curr)
+        step_num += 1
+
+        if curr == dst_clean:
+            success = True
+            status = "DELIVERED"
+            steps.append({
+                "step": step_num,
+                "current_router": curr,
+                "next_hop": "None",
+                "action": "DELIVERY_COMPLETE",
+                "table_entry": {"destination": dst_clean, "next_hop": curr, "hops": 0, "status": "Delivered"},
+                "description": f"Packet successfully reached destination router '{dst_clean}' in {len(path) - 1} hops."
+            })
+            break
+
+    if not success and status == "IN_PROGRESS":
+        status = "TTL_EXPIRED"
+        failure_message = f"Forwarding terminated: exceeded maximum hop limit of {max_hops}."
+
+    hops_count = len(path) - 1 if len(path) > 1 else 0
+
+    return {
+        "success": success,
+        "status": status,
+        "path": path,
+        "hops": hops_count,
+        "steps": steps,
+        "final_router": curr,
+        "message": f"Table forwarding {'succeeded: ' + ' -> '.join(path) if success else 'failed: ' + failure_message}"
+    }
+
 

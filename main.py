@@ -1,11 +1,11 @@
 """
-main.py — NetRoute: Interactive Network Packet-Routing Simulator.
+main.py — NetRoute: Network Packet-Routing Simulator.
 
-A modern, high-contrast, educational network simulator matching the reference dashboard UI.
-Demonstrates:
-- CO1: Stack and Queue Data Structures (Queue BFS vs. Stack DFS).
-- CO2: Dynamic Graph Operations (Insertion, Deletion, Rename, Fault Toggle).
-- CO5: Graph Traversals, Traversal Trees, Route Reconstruction, and Telemetry.
+A modern, high-contrast, educational network simulator for Telecommunications and Networking.
+Integrated Course Outcomes:
+- CO3: Searching and Sorting Algorithm Evaluation (Linear vs. Binary Search, Bubble vs. Insertion Sort).
+- CO4: Routing Traversal Tree Structures (BFS/DFS Traversal Spanning Tree, Tree Invariants).
+- CO5: Graph-Based Packet Routing vs. Traditional Hop-by-Hop Routing Table Forwarding.
 """
 
 import time
@@ -23,7 +23,10 @@ from theme import (
     PRIMARY, PRIMARY_DARK, CYAN, PURPLE, SUCCESS, WARNING, ERROR, TEXT_MAIN, TEXT_MUTED, BORDER
 )
 from network import Graph, Router, validate_router_id
-from algorithms import bfs, dfs, dijkstra, reconstruct_route_from_parents
+from algorithms import (
+    bfs, dfs, dijkstra, reconstruct_route_from_parents,
+    linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree
+)
 import simulation as sim
 
 # -------------------------------------------------------------
@@ -277,6 +280,145 @@ def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_
         yaxis=dict(range=[max_y + dy * 0.22, min_y - dy * 0.22], showgrid=False, zeroline=False, showticklabels=False)
     )
     return fig
+
+
+def build_traversal_tree_figure(tree_data: Dict[str, Any], src_id: str, dst_id: str, height: int = 420) -> go.Figure:
+    """
+    Renders a clear hierarchical Plotly figure of the Traversal Spanning Tree (CO4).
+    Root router at the top (Level 0), discovered routers positioned by level/depth,
+    and tree edges connecting parents to children with path highlighting.
+    """
+    fig = go.Figure()
+    if not tree_data or not tree_data.get("nodes"):
+        fig.add_annotation(
+            text="No traversal tree data available. Run routing traversal from the control panel.",
+            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14, color=TEXT_MUTED)
+        )
+        fig.update_layout(
+            paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF", height=height,
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+        )
+        return fig
+
+    levels = tree_data.get("levels", {})
+    edges = tree_data.get("edges", [])
+    path_list = tree_data.get("path_to_dest", [])
+    path_nodes = set(path_list)
+
+    path_edges = set()
+    for i in range(len(path_list) - 1):
+        path_edges.add((path_list[i], path_list[i + 1]))
+
+    nodes_by_level: Dict[int, List[str]] = {}
+    for node, lvl in levels.items():
+        nodes_by_level.setdefault(lvl, []).append(node)
+
+    pos: Dict[str, Tuple[float, float]] = {}
+    max_lvl = max(nodes_by_level.keys()) if nodes_by_level else 0
+    y_step = 280.0 / max(1, max_lvl) if max_lvl > 0 else 100.0
+
+    for lvl, n_list in nodes_by_level.items():
+        sorted_nodes = sorted(n_list)
+        y_val = 360.0 - (lvl * y_step)
+        k = len(sorted_nodes)
+        for idx, node in enumerate(sorted_nodes):
+            x_val = 100.0 + (500.0 / (k + 1)) * (idx + 1)
+            pos[node] = (x_val, y_val)
+
+    # A. Draw Tree Edges
+    for parent, child in edges:
+        if parent in pos and child in pos:
+            x1, y1 = pos[parent]
+            x2, y2 = pos[child]
+            is_path_edge = (parent, child) in path_edges
+            line_color = "#10B981" if is_path_edge else "#8B5CF6"
+            line_width = 3.6 if is_path_edge else 2.0
+
+            fig.add_trace(go.Scatter(
+                x=[x1, x2], y=[y1, y2],
+                mode="lines",
+                line=dict(color=line_color, width=line_width),
+                hoverinfo="none",
+                showlegend=False
+            ))
+
+            mid_x = (x1 + x2) / 2.0
+            mid_y = (y1 + y2) / 2.0
+            fig.add_annotation(
+                x=mid_x, y=mid_y,
+                text="▼" if y1 > y2 else "▲",
+                showarrow=False,
+                font=dict(size=11, color=line_color),
+                opacity=0.85
+            )
+
+    # B. Draw Tree Nodes
+    node_x, node_y, node_text, node_colors, border_colors, text_colors = [], [], [], [], [], []
+    for node in tree_data.get("nodes", []):
+        if node not in pos:
+            continue
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        node_text.append(f"<b>{node}</b>")
+
+        if node == src_id:
+            node_colors.append("#10B981")  # Green for Root
+            border_colors.append("#059669")
+            text_colors.append("#FFFFFF")
+        elif node == dst_id:
+            node_colors.append("#7C3AED")  # Purple for Destination
+            border_colors.append("#5B21B6")
+            text_colors.append("#FFFFFF")
+        elif node in path_nodes:
+            node_colors.append("#2563EB")  # Blue for Route Path
+            border_colors.append("#1D4ED8")
+            text_colors.append("#FFFFFF")
+        else:
+            node_colors.append("#F1F5F9")  # Slate for other nodes
+            border_colors.append("#94A3B8")
+            text_colors.append("#0F172A")
+
+    fig.add_trace(go.Scatter(
+        x=node_x, y=node_y,
+        mode="markers+text",
+        marker=dict(
+            size=36,
+            color=node_colors,
+            line=dict(color=border_colors, width=2.4)
+        ),
+        text=node_text,
+        textposition="middle center",
+        textfont=dict(size=12, color=text_colors, family="-apple-system, sans-serif"),
+        hoverinfo="text",
+        hovertext=[
+            f"<b>Router: {n}</b><br>Level / Depth: {levels.get(n, 0)}<br>Type: {'Root' if n == src_id else ('Destination' if n == dst_id else 'Tree Node')}"
+            for n in tree_data.get("nodes", []) if n in pos
+        ],
+        showlegend=False
+    ))
+
+    # C. Root Badge
+    if src_id in pos:
+        rx, ry = pos[src_id]
+        fig.add_annotation(
+            x=rx, y=ry + 30,
+            text="<b>ROOT (Depth 0)</b>",
+            showarrow=False,
+            font=dict(size=10, color="#10B981", family="-apple-system, sans-serif"),
+            bgcolor="#ECFDF5", bordercolor="#10B981", borderwidth=1, borderpad=3
+        )
+
+    fig.update_layout(
+        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF", height=height,
+        margin=dict(l=30, r=30, t=50, b=30), hovermode="closest",
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+    )
+    return fig
+
 
 
 # -------------------------------------------------------------
@@ -688,143 +830,395 @@ with right_col:
 st.write("")
 st.markdown("---")
 
-tab_ds, tab_arena, tab_failure, tab_history, tab_challenges, tab_report, tab_hist, tab_route_diag, tab_representations, tab_viva = st.tabs([
-    "Queue, Stack & Heap Inspector (CO1)",
+tab_co5, tab_co4, tab_co3, tab_arena, tab_failure, tab_history, tab_challenges, tab_report, tab_hist, tab_supporting = st.tabs([
+    "CO5: Packet Routing & Routing Table Comparison",
+    "CO4: Routing Traversal Tree Inspector",
+    "CO3: Searching & Sorting Evaluation",
     "BFS vs. DFS Dual Canvas Arena",
-    "Failure & Recovery Lab (Feature C)",
-    "Simulation History & Replay (Feature D)",
-    "DSA Challenge Mode (Feature E)",
-    "Export Experiment Report (Feature F)",
+    "Network Failure & Recovery Lab",
+    "Simulation History & Replay",
+    "DSA Challenge Mode",
+    "Export Experiment Report",
     "Step-by-Step Traversal Log",
-    "Route Reconstruction & Packet Forwarding (CO5)",
-    "Synchronized Graph Representations (CO2)",
-    "Algorithm Benchmark & Viva Guide"
+    "Supporting Data Structures & Viva Guide"
 ])
 
 # =============================================================
-# TAB 1: DATA STRUCTURE LIVE INSPECTOR (CO1)
+# CO5: GRAPH-BASED ROUTING VS. TRADITIONAL TABLE-BASED FORWARDING
 # =============================================================
-with tab_ds:
-    st.markdown("### Data Structure Live Inspector (CO1)")
-    st.caption("Inspect real-time FIFO queue, LIFO stack, and Min-Heap Priority Queue mechanics during graph traversal.")
+with tab_co5:
+    st.markdown("### CO5 — Graph-Based Packet Routing vs. Traditional Routing Table Comparison")
+    st.caption("Official Outcome: Evaluate graph-based routing algorithms (BFS/DFS) against traditional hop-by-hop forwarding tables in telecommunications.")
 
-    ds_c1, ds_c2 = st.columns([1, 1])
-    is_dijkstra = "Dijkstra" in st.session_state.get("selected_algo", "")
-    is_bfs = "BFS" in st.session_state.get("selected_algo", "")
-    is_dfs = "DFS" in st.session_state.get("selected_algo", "")
+    src_fwd = st.session_state.get("source_id", "N1")
+    dst_fwd = st.session_state.get("dest_id", "N7")
 
-    with ds_c1:
-        if is_dijkstra:
-            st.markdown("#### Active Structure: **Min-Heap Priority Queue (`heapq`)**")
-            st.info(
-                "**Min-Priority Queue:** Stores `(tentative_cost, router_id)`. The router with the lowest "
-                "cumulative path cost is extracted from the root in $O(\\log V)$ time using Python's `heapq.heappop`. "
-                "Edge relaxations decrease tentative distances and push updated pairs using `heapq.heappush`."
-            )
-        elif is_bfs:
-            st.markdown("#### Active Structure: **FIFO Queue (`collections.deque`)**")
-            st.info(
-                "**First-In-First-Out (FIFO) Queue:** Elements are enqueued at the **REAR** and dequeued from the **FRONT**. "
-                "Because BFS expands concentrically level-by-level, the first path that reaches the destination router is "
-                "guaranteed to have the minimum number of hops."
-            )
+    co5_c1, co5_c2 = st.columns([1.1, 1.0])
+
+    with co5_c1:
+        st.markdown("#### 1. Traditional Router Routing Table")
+        st.caption("Traditional IP routers maintain local routing tables containing destination prefix, Next Hop, and metric distance.")
+
+        avail_routers = sorted(list(graph.routers.keys()))
+        def_idx = avail_routers.index(src_fwd) if src_fwd in avail_routers else 0
+        selected_tbl_router = st.selectbox(
+            "Select Router to Inspect Forwarding Table:",
+            options=avail_routers,
+            index=def_idx,
+            key="routing_table_select"
+        )
+
+        rtable = graph.generate_routing_table(selected_tbl_router)
+        rtable_df = pd.DataFrame(rtable)
+        st.dataframe(rtable_df, width="stretch", height=230)
+
+        st.info(
+            f"**Forwarding Table Rule:** Packets arriving at Router **{selected_tbl_router}** are inspected for their destination address. "
+            f"The router queries its forwarding table and immediately relays the packet to the specified **Next Hop** neighbor."
+        )
+
+    with co5_c2:
+        st.markdown("#### 2. Hop-by-Hop Table Forwarding Simulation")
+        st.caption("Simulates distributed hop-by-hop forwarding where each router independently routes using its table.")
+
+        fwd_res = sim.simulate_table_forwarding(graph, src_fwd, dst_fwd)
+
+        if fwd_res["success"]:
+            st.success(f"**Forwarding Successful:** {' -> '.join(fwd_res['path'])} ({fwd_res['hops']} hops)")
         else:
-            st.markdown("#### Active Structure: **LIFO Stack (`list`)**")
-            st.info(
-                "**Last-In-First-Out (LIFO) Stack:** Elements are pushed and popped exclusively at the **TOP**. "
-                "DFS explores a single deep branch until hitting a dead end, triggering explicit backtracking."
-            )
+            st.error(f"**Forwarding Failed:** {fwd_res['message']} (Status: `{fwd_res['status']}`)")
 
-        if current_step:
-            if is_dijkstra:
-                st.markdown("##### Current Elements in Min-Heap Priority Queue")
-                pq_items = current_step.get("priority_queue", [])
-                if not pq_items:
-                    st.caption("*Priority Queue is currently empty.*")
-                else:
-                    sorted_pq = sorted(pq_items, key=lambda x: x[0])
-                    for idx, (dist, node) in enumerate(sorted_pq):
-                        root_tag = " [MIN-HEAP ROOT / NEXT EXTRACT-MIN]" if idx == 0 else ""
-                        st.markdown(f"- Index **{idx}**: Router **{node}** (Tentative Cost: **{dist}**){root_tag}")
+        if fwd_res.get("steps"):
+            fwd_steps_df = pd.DataFrame([
+                {
+                    "Hop": s["step"],
+                    "Current Router": s["current_router"],
+                    "Next Hop": s["next_hop"],
+                    "Action": s["action"],
+                    "Description": s["description"]
+                }
+                for s in fwd_res["steps"]
+            ])
+            st.dataframe(fwd_steps_df, width="stretch", height=200)
 
-                st.markdown("##### Tentative Distances Table")
-                tent_dist = current_step.get("tentative_distances", {})
-                parents = current_step.get("parents", {})
-                visited_set = set(current_step.get("visited", []))
-                dist_rows = []
-                for r in sorted(graph.routers.keys()):
-                    d = tent_dist.get(r, float("inf"))
-                    d_str = "0" if d == 0 else (f"{int(d) if d.is_integer() else d}" if d != float("inf") else "∞")
-                    p = parents.get(r)
-                    p_str = p if p else ("Origin" if d == 0 else "None")
-                    settled_str = "Settled (Visited)" if r in visited_set else "Tentative"
-                    dist_rows.append({"Router": r, "Tentative Cost": d_str, "Predecessor Pointer": p_str, "Status": settled_str})
-                st.dataframe(pd.DataFrame(dist_rows), width="stretch", height=200)
+    st.write("")
+    st.markdown("---")
+    st.markdown("#### 3. Graph-Based Route Discovery vs. Traditional Table-Based Forwarding")
 
-            else:
-                items = current_step.get("structure", [])
-                target = current_step.get("action_target")
-                st.markdown("##### Current Elements in Structure")
-                if not items:
-                    st.caption("*Structure is currently empty.*")
-                else:
-                    for idx, it in enumerate(items):
-                        ptr_str = ""
-                        if is_bfs:
-                            if idx == 0 and len(items) == 1:
-                                ptr_str = " [FRONT & REAR]"
-                            elif idx == 0:
-                                ptr_str = " [FRONT]"
-                            elif idx == len(items) - 1:
-                                ptr_str = " [REAR]"
-                        else:
-                            if idx == len(items) - 1 and len(items) == 1:
-                                ptr_str = " [TOP & BOTTOM]"
-                            elif idx == len(items) - 1:
-                                ptr_str = " [TOP]"
-                            elif idx == 0:
-                                ptr_str = " [BOTTOM]"
+    graph_path = sim_res.get("path", []) if sim_res else []
+    graph_hops = sim_res.get("hops", 0) if sim_res else 0
+    graph_algo = sim_res.get("algorithm", "BFS") if sim_res else "BFS"
 
-                        active_str = " <== ACTIVE IN THIS STEP" if it == target else ""
-                        st.markdown(f"- Index **{idx}**: Router **{it}**{ptr_str}{active_str}")
+    comp_data = [
+        {
+            "Architectural Dimension": "Routing Paradigm",
+            "Graph-Based Route Discovery (BFS/DFS)": "Centralized, On-Demand Path Discovery",
+            "Traditional Table-Based Forwarding": "Distributed, Hop-by-Hop Local Lookup"
+        },
+        {
+            "Architectural Dimension": "Topology Knowledge",
+            "Graph-Based Route Discovery (BFS/DFS)": "Requires complete global graph topology (V and E)",
+            "Traditional Table-Based Forwarding": "Routers only need local Next Hop for each destination"
+        },
+        {
+            "Architectural Dimension": "Forwarding Decision",
+            "Graph-Based Route Discovery (BFS/DFS)": "Explores full graph at runtime using FIFO queue or Stack",
+            "Traditional Table-Based Forwarding": "O(1) memory table lookup on arrival of packet"
+        },
+        {
+            "Architectural Dimension": "Observed Discovered Path",
+            "Graph-Based Route Discovery (BFS/DFS)": " -> ".join(graph_path) if graph_path else "Unreachable",
+            "Traditional Table-Based Forwarding": " -> ".join(fwd_res["path"]) if fwd_res["path"] else "Failed"
+        },
+        {
+            "Architectural Dimension": "Total Path Hop Count",
+            "Graph-Based Route Discovery (BFS/DFS)": f"{graph_hops} hops ({graph_algo})",
+            "Traditional Table-Based Forwarding": f"{fwd_res['hops']} hops"
+        },
+        {
+            "Architectural Dimension": "Fault Tolerance",
+            "Graph-Based Route Discovery (BFS/DFS)": "Re-traverses graph dynamically if a link is marked failed",
+            "Traditional Table-Based Forwarding": "Fails immediately at broken link unless routing table is updated"
+        }
+    ]
+    st.dataframe(pd.DataFrame(comp_data), width="stretch")
 
-    with ds_c2:
-        st.markdown("#### Real-time Operation Counters")
-        if current_step and sim_res:
-            oc1, oc2 = st.columns(2)
-            with oc1:
-                if is_dijkstra:
-                    st.metric("Edge Relaxations", f"{current_step.get('relaxations', 0)}")
-                    st.metric("Heap Pushes", f"{current_step.get('heap_pushes', 0)}")
-                elif is_bfs:
-                    st.metric("Total Enqueues", f"{current_step.get('enqueues', 0)}")
-                    st.metric("Current Queue Size", f"{len(current_step.get('structure', []))}")
-                else:
-                    st.metric("Total Pushes", f"{current_step.get('pushes', 0)}")
-                    st.metric("Current Stack Size", f"{len(current_step.get('structure', []))}")
-            with oc2:
-                if is_dijkstra:
-                    st.metric("Heap Pops", f"{current_step.get('heap_pops', 0)}")
-                    st.metric("Peak Heap Size", f"{sim_res.get('max_structure', 0)}")
-                elif is_bfs:
-                    st.metric("Total Dequeues", f"{current_step.get('dequeues', 0)}")
-                    st.metric("Peak Queue Capacity", f"{sim_res.get('max_structure', 0)}")
-                else:
-                    st.metric("Total Pops", f"{current_step.get('pops', 0)}")
-                    st.metric("Peak Stack Capacity", f"{sim_res.get('max_structure', 0)}")
+    st.write("")
+    st.markdown("#### 4. Discovered Route Reconstruction & Packet Forwarding Stepper")
+    trace_col1, trace_col2 = st.columns(2)
+    with trace_col1:
+        st.markdown("##### Parent Pointer Backward Trace $O(L)$")
+        if sim_res and sim_res.get("success") and sim_res.get("path"):
+            path = sim_res["path"]
+            parents = sim_res.get("parents", {})
+            trace_steps = []
+            curr = path[-1]
+            while curr is not None:
+                p = parents.get(curr)
+                trace_steps.append({"Current Router": curr, "Predecessor (Parent Pointer)": p if p else "None (Origin/Root)"})
+                curr = p
+            st.dataframe(pd.DataFrame(trace_steps), width="stretch", height=180)
+        else:
+            st.caption("Run route analysis to view parent pointers.")
+    with trace_col2:
+        st.markdown("##### Hop-by-Hop Packet Stepper")
+        if sim_res and sim_res.get("success") and sim_res.get("path"):
+            path = sim_res["path"]
+            p_hop = st.session_state.get("packet_hop", 0)
+            st.caption(f"Status: **{active_state.get('packet_status')}**")
+            p_c1, p_c2, p_c3 = st.columns(3)
+            with p_c1:
+                if st.button("Step Hop Forward", width="stretch", disabled=(p_hop >= len(path) - 1), key="co5_p_step"):
+                    sim.packet_step_forward()
+                    st.rerun()
+            with p_c2:
+                stream_lbl = "Pause Stream" if st.session_state.get("packet_auto") else "Auto-Stream"
+                if st.button(stream_lbl, width="stretch", key="co5_p_auto"):
+                    sim.toggle_packet_stream()
+                    st.rerun()
+            with p_c3:
+                if st.button("Reset Hop", width="stretch", key="co5_p_reset"):
+                    sim.reset_packet()
+                    st.rerun()
+            st.progress(p_hop / max(1, len(path) - 1))
 
-            if is_dfs:
-                st.markdown(f"**Backtracking Count:** `{sim_res.get('backtrack_count', 0)}`")
-                if current_step.get("is_backtrack"):
-                    st.warning(f"Backtracking Active: Dead end reached at '{current_step.get('current_node')}'.")
 
-            if is_dijkstra:
-                st.markdown(
-                    """
-                    > **Greedy Choice Property:** At each step, Dijkstra extracts the vertex with the lowest tentative distance.
-                    > Because all link weights are non-negative ($w \\ge 0$), no subsequent edge relaxation can ever find a shorter path to an already settled vertex.
-                    """
-                )
+# =============================================================
+# CO4: ROUTING TRAVERSAL TREE STRUCTURE
+# =============================================================
+with tab_co4:
+    st.markdown("### CO4 — Routing Traversal Tree Structures")
+    st.caption("Official Outcome: Develop genuine tree structures derived from graph traversal parent relationships recorded during routing.")
+
+    src_tree = st.session_state.get("source_id", "N1")
+    dst_tree = st.session_state.get("dest_id", "N7")
+
+    parents_tree = sim_res.get("parents", {}) if sim_res else {}
+    tree_result = build_traversal_tree(parents_tree, src_tree, dst_tree)
+
+    tree_c1, tree_c2 = st.columns([1.3, 1.0])
+
+    with tree_c1:
+        st.markdown(f"#### Traversal Spanning Tree (Root: **{src_tree}**)")
+        st.caption("Hierarchical layout: Root router at Level 0, child vertices arranged by traversal depth.")
+        tree_fig = build_traversal_tree_figure(tree_result, src_tree, dst_tree, height=390)
+        st.plotly_chart(tree_fig, use_container_width=True, key="co4_tree_fig")
+
+    with tree_c2:
+        st.markdown("#### Tree Invariants & Structural Verification")
+
+        inv_check = tree_result['edge_count'] == max(0, tree_result['node_count'] - 1)
+        st.markdown(f"""
+        - **Tree Root:** Router **{tree_result['root']}** (Unique Single Root)
+        - **Total Tree Vertices:** **{tree_result['node_count']}** reachable vertices
+        - **Total Tree Edges:** **{tree_result['edge_count']}** directed parent-child edges
+        - **Tree Invariant Check ($E = V - 1$):** **{'SATISFIED' if inv_check else 'VIOLATED'}** ({tree_result['edge_count']} edges for {tree_result['node_count']} nodes)
+        - **Acyclic Property Verified:** **{'YES (Strictly Cycle-Free)' if tree_result['is_acyclic'] else 'NO (Cycle Detected)'}**
+        - **Destination Path in Tree:** {' -> '.join(tree_result['path_to_dest']) if tree_result['path_to_dest'] else 'Unreachable'}
+        """)
+
+        st.markdown("##### Traversal Level (Depth) Hierarchy")
+        if tree_result.get("levels"):
+            lvl_records = []
+            for n in tree_result["nodes"]:
+                p_ptr = parents_tree.get(n)
+                lvl_records.append({
+                    "Router": n,
+                    "Tree Level (Depth)": tree_result["levels"].get(n, 0),
+                    "Parent in Tree": p_ptr if p_ptr else "None (Root)",
+                    "Children": ", ".join(tree_result["children"].get(n, [])) or "Leaf Node"
+                })
+            st.dataframe(pd.DataFrame(lvl_records), width="stretch", height=200)
+
+    st.write("")
+    st.markdown("---")
+    st.markdown("#### Engineering Distinction: Network Graph vs. Traversal Spanning Tree")
+
+    diff_data = [
+        {
+            "Property": "Mathematical Structure",
+            "Original Network Graph G = (V, E)": "Arbitrary undirected cyclic graph",
+            "Routing Traversal Tree T = (V', E')": "Directed rooted spanning tree"
+        },
+        {
+            "Property": "Cycle Presence",
+            "Original Network Graph G = (V, E)": "May contain multiple redundant loops and alternative circuits",
+            "Routing Traversal Tree T = (V', E')": "Strictly ACYCLIC; exactly one path between root and any vertex"
+        },
+        {
+            "Property": "Edge Count Invariant",
+            "Original Network Graph G = (V, E)": "Can have any number of edges (E >= V in mesh/telecom topologies)",
+            "Routing Traversal Tree T = (V', E')": "Exactly E = V' - 1 edges for V' reachable vertices"
+        },
+        {
+            "Property": "Parent-Child Relationship",
+            "Original Network Graph G = (V, E)": "Symmetric, peer-to-peer adjacent neighbors",
+            "Routing Traversal Tree T = (V', E')": "Each reachable non-root node has exactly ONE parent pointer"
+        },
+        {
+            "Property": "Unreachable Nodes",
+            "Original Network Graph G = (V, E)": "May contain disconnected components and offline routers",
+            "Routing Traversal Tree T = (V', E')": "Unreachable routers are strictly excluded from source's tree"
+        }
+    ]
+    st.dataframe(pd.DataFrame(diff_data), width="stretch")
+
+
+# =============================================================
+# CO3: SEARCHING AND SORTING ALGORITHM EVALUATION
+# =============================================================
+with tab_co3:
+    st.markdown("### CO3 — Searching and Sorting Algorithm Evaluation")
+    st.caption("Official Outcome: Evaluate the performance of searching and sorting algorithms for solving engineering problems on routing data.")
+
+    active_router_ids = [r.id for r in graph.routers.values()]
+    if not active_router_ids:
+        active_router_ids = ["R1", "R2", "R3", "R4", "R5"]
+
+    co3_s1, co3_s2 = st.columns([1, 1])
+
+    with co3_s1:
+        st.markdown("#### 1. Searching Algorithm Evaluation")
+        st.caption("Compare **Linear Search** (unsorted dataset) vs. **Binary Search** (sorted dataset) using actual router IDs.")
+
+        target_input = st.text_input("Enter Target Router ID to Search:", value="N4" if "N4" in active_router_ids else active_router_ids[0], key="co3_search_target")
+        target_clean = target_input.strip().upper()
+
+        unsorted_data = list(active_router_ids)
+        sorted_data = sorted(list(active_router_ids))
+
+        l_res = linear_search(unsorted_data, target_clean)
+        b_res = binary_search(sorted_data, target_clean)
+
+        st.markdown(f"**Search Dataset (Unsorted):** `{unsorted_data}`")
+        st.markdown(f"**Sorted Dataset (for Binary Search):** `{sorted_data}`")
+
+        s_col1, s_col2 = st.columns(2)
+        with s_col1:
+            st.markdown("##### Linear Search $O(n)$")
+            st.markdown(f"- Found: **{'YES' if l_res['found'] else 'NO'}** (Index: `{l_res['index']}`)")
+            st.markdown(f"- Comparisons: **{l_res['comparisons']}**")
+            st.markdown(f"- Measured Time: **{l_res['execution_time_ms']:.4f} ms**")
+            st.markdown(f"- Complexity: `{l_res['theoretical_complexity']}`")
+        with s_col2:
+            st.markdown("##### Binary Search $O(\\log n)$")
+            st.markdown(f"- Found: **{'YES' if b_res['found'] else 'NO'}** (Sorted Index: `{b_res['index']}`)")
+            st.markdown(f"- Comparisons: **{b_res['comparisons']}**")
+            st.markdown(f"- Measured Time: **{b_res['execution_time_ms']:.4f} ms**")
+            st.markdown(f"- Complexity: `{b_res['theoretical_complexity']}`")
+
+        st.info(
+            "**Why Binary Search Requires Sorted Data:** Binary search uses divide-and-conquer. "
+            "By comparing the target against the middle element, it eliminates half of the remaining "
+            "search space in each step. If the dataset is unsorted, ordering cannot guarantee which half "
+            "contains the target, causing the algorithm to fail."
+        )
+
+        with st.expander("View Searching Step Trace"):
+            if l_res["steps"]:
+                st.markdown("**Linear Search Comparison Trace:**")
+                st.dataframe(pd.DataFrame(l_res["steps"]), width="stretch", height=140)
+            if b_res["steps"]:
+                st.markdown("**Binary Search Interval Elimination Trace:**")
+                st.dataframe(pd.DataFrame(b_res["steps"]), width="stretch", height=140)
+
+    with co3_s2:
+        st.markdown("#### 2. Sorting Algorithm Evaluation")
+        st.caption("Compare **Bubble Sort** and **Insertion Sort** on router records, measuring comparisons and swaps/shifts.")
+
+        sort_test_choice = st.radio(
+            "Input Dataset Source:",
+            ["Active Graph Router IDs (Reversed/Permuted)", "Reverse-Sorted Worst Case (N7..N1)", "Already Sorted Best Case (N1..N7)"],
+            horizontal=True,
+            key="sort_input_choice"
+        )
+        if "Worst Case" in sort_test_choice:
+            sort_input = sorted(list(active_router_ids), reverse=True)
+        elif "Best Case" in sort_test_choice:
+            sort_input = sorted(list(active_router_ids))
+        else:
+            sort_input = list(reversed(active_router_ids)) if len(active_router_ids) > 1 else ["N4", "N1", "N7", "N2", "N6", "N3", "N5"]
+
+        bubble_res = bubble_sort(sort_input)
+        insert_res = insertion_sort(sort_input)
+
+        st.markdown(f"**Original Input Array:** `{sort_input}`")
+
+        sort_col1, sort_col2 = st.columns(2)
+        with sort_col1:
+            st.markdown("##### Bubble Sort $O(n^2)$")
+            st.markdown(f"- Sorted Output: `{bubble_res['sorted_data']}`")
+            st.markdown(f"- Comparisons: **{bubble_res['comparisons']}**")
+            st.markdown(f"- Swaps: **{bubble_res['swaps']}** (Passes: {bubble_res['passes']})")
+            st.markdown(f"- Correctness Verified: **{bubble_res['is_correct']}**")
+            st.markdown(f"- Measured Time: **{bubble_res['execution_time_ms']:.4f} ms**")
+        with sort_col2:
+            st.markdown("##### Insertion Sort $O(n^2)$ / $O(n)$")
+            st.markdown(f"- Sorted Output: `{insert_res['sorted_data']}`")
+            st.markdown(f"- Comparisons: **{insert_res['comparisons']}**")
+            st.markdown(f"- Shifts / Relocations: **{insert_res['shifts']}**")
+            st.markdown(f"- Correctness Verified: **{insert_res['is_correct']}**")
+            st.markdown(f"- Measured Time: **{insert_res['execution_time_ms']:.4f} ms**")
+
+        st.info(
+            "**Sorting Complexity & Input Sensitivity:** "
+            "Bubble Sort checks adjacent pairs, executing $O(n^2)$ comparisons. "
+            "Insertion Sort shifts elements into place; for already sorted input, it terminates each scan in $O(1)$, "
+            "achieving an optimal $O(n)$ best-case runtime."
+        )
+
+    st.write("")
+    st.markdown("---")
+    st.markdown("#### 3. Compact CO3 Algorithm Performance Summary Table")
+
+    co3_summary = [
+        {
+            "Algorithm": "Linear Search",
+            "Category": "Searching",
+            "Input Size (n)": len(unsorted_data),
+            "Result Correctness": "Verified (Found)" if l_res["found"] else "Verified (Not Found)",
+            "Comparisons Count": l_res["comparisons"],
+            "Swaps / Shifts": 0,
+            "Measured Time (ms)": f"{l_res['execution_time_ms']:.4f}",
+            "Theoretical Time Complexity": "O(n) worst/avg, O(1) best"
+        },
+        {
+            "Algorithm": "Binary Search",
+            "Category": "Searching",
+            "Input Size (n)": len(sorted_data),
+            "Result Correctness": "Verified (Found)" if b_res["found"] else "Verified (Not Found)",
+            "Comparisons Count": b_res["comparisons"],
+            "Swaps / Shifts": 0,
+            "Measured Time (ms)": f"{b_res['execution_time_ms']:.4f}",
+            "Theoretical Time Complexity": "O(log n) worst/avg, O(1) best"
+        },
+        {
+            "Algorithm": "Bubble Sort",
+            "Category": "Sorting",
+            "Input Size (n)": bubble_res["input_size"],
+            "Result Correctness": f"Verified ({bubble_res['is_correct']})",
+            "Comparisons Count": bubble_res["comparisons"],
+            "Swaps / Shifts": bubble_res["swaps"],
+            "Measured Time (ms)": f"{bubble_res['execution_time_ms']:.4f}",
+            "Theoretical Time Complexity": "O(n²) worst/avg, O(n) best"
+        },
+        {
+            "Algorithm": "Insertion Sort",
+            "Category": "Sorting",
+            "Input Size (n)": insert_res["input_size"],
+            "Result Correctness": f"Verified ({insert_res['is_correct']})",
+            "Comparisons Count": insert_res["comparisons"],
+            "Swaps / Shifts": insert_res["shifts"],
+            "Measured Time (ms)": f"{insert_res['execution_time_ms']:.4f}",
+            "Theoretical Time Complexity": "O(n²) worst/avg, O(n) best"
+        }
+    ]
+    st.dataframe(pd.DataFrame(co3_summary), width="stretch")
+    st.caption(
+        "*Note on Educational Metrics:* On small datasets, microsecond execution times can be dominated by Python interpreter and measurement overhead. "
+        "Operation counts (comparisons, swaps, shifts) serve as the mathematically precise, reproducible metric for theoretical complexity evaluation."
+    )
+
 
 
 # =============================================================
@@ -1106,24 +1500,27 @@ with tab_history:
         # History Table
         hist_table = []
         for r in history_records:
+            r_path = r.get("path") or r.get("route", [])
+            r_visited = r.get("visited") or []
+            v_count = len(r_visited) if isinstance(r_visited, list) else r.get("visited_count", 0)
             hist_table.append({
-                "Run ID": r["run_id"],
+                "Run ID": r.get("run_id", 1),
                 "Timestamp": r.get("timestamp", "-"),
-                "Algorithm": r["algorithm"],
-                "Source": r["source"],
-                "Dest": r["dest"],
-                "Path": " -> ".join(r["path"]) if r["path"] else "Unreachable",
-                "Hops": r["hops"],
-                "Cost": r["cost"],
-                "Visited": len(r["visited"]),
-                "Status": "Success" if r["success"] else "Failed"
+                "Algorithm": r.get("algorithm", "BFS"),
+                "Source": r.get("source", "-"),
+                "Dest": r.get("dest") or r.get("destination", "-"),
+                "Path": " -> ".join(r_path) if r_path else "Unreachable",
+                "Hops": r.get("hops", 0),
+                "Cost": r.get("cost", 0.0),
+                "Visited": v_count,
+                "Status": "Success" if r.get("success") else "Failed"
             })
         st.dataframe(pd.DataFrame(hist_table), width="stretch", height=240)
 
         h_c1, h_c2 = st.columns([1, 1])
         with h_c1:
             st.markdown("#### Replay Traversal")
-            replay_ids = [r["run_id"] for r in history_records]
+            replay_ids = [r.get("run_id", idx + 1) for idx, r in enumerate(history_records)]
             selected_run = st.selectbox("Select Run ID to Replay", options=replay_ids, key="replay_run_sel")
             if st.button("Replay Recorded Run", type="primary", width="stretch"):
                 if sim.replay_history_run(selected_run):
@@ -1136,17 +1533,24 @@ with tab_history:
                 rc_1, rc_2 = st.columns(2)
                 run_a_id = rc_1.selectbox("Run A", options=replay_ids, index=0, key="run_a_sel")
                 run_b_id = rc_2.selectbox("Run B", options=replay_ids, index=min(1, len(replay_ids) - 1), key="run_b_sel")
-                run_a = next(r for r in history_records if r["run_id"] == run_a_id)
-                run_b = next(r for r in history_records if r["run_id"] == run_b_id)
+                run_a = next(r for r in history_records if r.get("run_id") == run_a_id)
+                run_b = next(r for r in history_records if r.get("run_id") == run_b_id)
+
+                a_path = run_a.get("path") or run_a.get("route", [])
+                b_path = run_b.get("path") or run_b.get("route", [])
+                a_visited = run_a.get("visited") or []
+                b_visited = run_b.get("visited") or []
+                a_vcount = len(a_visited) if isinstance(a_visited, list) else run_a.get("visited_count", 0)
+                b_vcount = len(b_visited) if isinstance(b_visited, list) else run_b.get("visited_count", 0)
 
                 comp_df = pd.DataFrame([
-                    {"Metric": "Algorithm", "Run A": run_a["algorithm"], "Run B": run_b["algorithm"]},
-                    {"Metric": "Endpoints", "Run A": f"{run_a['source']} -> {run_a['dest']}", "Run B": f"{run_b['source']} -> {run_b['dest']}"},
-                    {"Metric": "Discovered Path", "Run A": " -> ".join(run_a["path"]), "Run B": " -> ".join(run_b["path"])},
-                    {"Metric": "Hop Count", "Run A": run_a["hops"], "Run B": run_b["hops"]},
-                    {"Metric": "Total Cost", "Run A": run_a["cost"], "Run B": run_b["cost"]},
-                    {"Metric": "Visited Nodes", "Run A": len(run_a["visited"]), "Run B": len(run_b["visited"])},
-                    {"Metric": "Execution Time", "Run A": f"{run_a['execution_time_ms']:.2f} ms", "Run B": f"{run_b['execution_time_ms']:.2f} ms"}
+                    {"Metric": "Algorithm", "Run A": run_a.get("algorithm", "BFS"), "Run B": run_b.get("algorithm", "DFS")},
+                    {"Metric": "Endpoints", "Run A": f"{run_a.get('source')} -> {run_a.get('dest') or run_a.get('destination')}", "Run B": f"{run_b.get('source')} -> {run_b.get('dest') or run_b.get('destination')}"},
+                    {"Metric": "Discovered Path", "Run A": " -> ".join(a_path) if a_path else "Unreachable", "Run B": " -> ".join(b_path) if b_path else "Unreachable"},
+                    {"Metric": "Hop Count", "Run A": run_a.get("hops", 0), "Run B": run_b.get("hops", 0)},
+                    {"Metric": "Total Cost", "Run A": run_a.get("cost", 0.0), "Run B": run_b.get("cost", 0.0)},
+                    {"Metric": "Visited Nodes", "Run A": a_vcount, "Run B": b_vcount},
+                    {"Metric": "Execution Time", "Run A": f"{run_a.get('execution_time_ms', 0.0):.2f} ms", "Run B": f"{run_b.get('execution_time_ms', 0.0):.2f} ms"}
                 ])
                 st.dataframe(comp_df, width="stretch", height=240)
             else:
@@ -1191,11 +1595,14 @@ with tab_challenges:
         if st.button("Watch Algorithm Execution", width="stretch", key="watch_challenge_btn"):
             if challenge.get("preset"):
                 st.session_state["graph"] = Graph.from_preset(challenge["preset"])
-            st.session_state["source_id"] = challenge["source"]
-            st.session_state["dest_id"] = challenge["dest"]
-            st.session_state["selected_algo"] = challenge["algo"]
+            c_src = challenge.get("source") or challenge.get("src") or "N1"
+            c_dst = challenge.get("dest") or challenge.get("dst") or "N7"
+            c_algo = challenge.get("algo", "BFS")
+            st.session_state["source_id"] = c_src
+            st.session_state["dest_id"] = c_dst
+            st.session_state["selected_algo"] = c_algo
             sim.invalidate_simulation()
-            sim.execute_routing(st.session_state["graph"], challenge["algo"], challenge["source"], challenge["dest"])
+            sim.execute_routing(st.session_state["graph"], c_algo, c_src, c_dst)
             st.session_state["step_idx"] = 0
             st.session_state["is_playing"] = True
             st.rerun()
@@ -1295,116 +1702,185 @@ with tab_hist:
 
 
 # =============================================================
-# TAB 7: ROUTE RECONSTRUCTION & PACKET FORWARDING (CO5)
+# TAB 10: SUPPORTING DATA STRUCTURES & VIVA VOCE GUIDE
 # =============================================================
-with tab_route_diag:
-    st.markdown("### Route Reconstruction & Packet Forwarding (CO5)")
-    st.caption("Parent pointer tracing and hop-by-hop packet forwarding along the discovered route.")
+with tab_supporting:
+    st.markdown("### Supporting Data Structures & Viva Voce Guide")
+    st.caption("Foundational implementation details supporting network routing: Queue/Stack/Heap structures, Adjacency List/Matrix representations, and academic viva questions.")
 
-    rr_c1, rr_c2 = st.columns(2)
-    with rr_c1:
-        st.markdown("#### Parent Pointer Backward Trace")
-        if sim_res and sim_res.get("success") and sim_res.get("path"):
-            path = sim_res["path"]
-            parents = sim_res.get("parents", {})
-            trace_steps = []
-            curr = path[-1]
-            while curr is not None:
-                p = parents.get(curr)
-                trace_steps.append({"Current Router": curr, "Predecessor (Parent Pointer)": p if p else "None (Origin)"})
-                curr = p
-            st.dataframe(pd.DataFrame(trace_steps), width="stretch", height=200)
-            st.success(f"Discovered Path: {' -> '.join(path)} ({len(path) - 1} hops)")
-        else:
-            st.caption("Run route analysis to view parent pointers.")
+    supp_tab1, supp_tab2, supp_tab3 = st.tabs([
+        "Live Structure Inspector (Queue / Stack / Heap)",
+        "Synchronized Graph Representations (List vs. Matrix)",
+        "Algorithm Benchmark & Faculty Viva Guide"
+    ])
 
-    with rr_c2:
-        st.markdown("#### Packet Transmission Stepper")
-        if sim_res and sim_res.get("success") and sim_res.get("path"):
-            path = sim_res["path"]
-            p_hop = st.session_state.get("packet_hop", 0)
-            st.caption(f"Status: **{active_state.get('packet_status')}**")
-            p_c1, p_c2, p_c3 = st.columns(3)
-            with p_c1:
-                if st.button("Step Hop Forward", width="stretch", disabled=(p_hop >= len(path) - 1)):
-                    sim.packet_step_forward()
-                    st.rerun()
-            with p_c2:
-                stream_lbl = "Pause Stream" if st.session_state.get("packet_auto") else "Auto-Stream"
-                if st.button(stream_lbl, width="stretch"):
-                    sim.toggle_packet_stream()
-                    st.rerun()
-            with p_c3:
-                if st.button("Reset Hop", width="stretch"):
-                    sim.reset_packet()
-                    st.rerun()
-            st.progress(p_hop / max(1, len(path) - 1))
+    with supp_tab1:
+        st.markdown("#### Live Data Structure Inspector")
+        ds_c1, ds_c2 = st.columns([1, 1])
+        is_dijkstra = "Dijkstra" in st.session_state.get("selected_algo", "")
+        is_bfs = "BFS" in st.session_state.get("selected_algo", "")
+        is_dfs = "DFS" in st.session_state.get("selected_algo", "")
 
+        with ds_c1:
+            if is_dijkstra:
+                st.markdown("##### Active Structure: **Min-Heap Priority Queue (`heapq`)**")
+                st.info(
+                    "Stores `(tentative_cost, router_id)`. The router with lowest cumulative distance "
+                    "is extracted from root in $O(\\log V)$ time using `heapq.heappop`. "
+                    "Edge relaxations decrease tentative distances and push updated pairs using `heapq.heappush`."
+                )
+            elif is_bfs:
+                st.markdown("##### Active Structure: **FIFO Queue (`collections.deque`)**")
+                st.info(
+                    "Elements are enqueued at **REAR** and dequeued from **FRONT**. "
+                    "Because BFS expands concentrically level-by-level, the first path that reaches destination "
+                    "is guaranteed to have the minimum number of hops."
+                )
+            else:
+                st.markdown("##### Active Structure: **LIFO Stack (`list`)**")
+                st.info(
+                    "Elements are pushed and popped exclusively at **TOP**. "
+                    "DFS explores a single branch deeply until hitting a dead end, triggering backtracking."
+                )
 
-# =============================================================
-# TAB 8: SYNCHRONIZED GRAPH REPRESENTATIONS (CO2)
-# =============================================================
-with tab_representations:
-    st.markdown("### Synchronized Graph Representations (CO2)")
-    st.caption("Maintaining real-time synchronization between the Adjacency List O(V + E) and Adjacency Matrix O(V^2).")
+            if current_step:
+                if is_dijkstra:
+                    st.markdown("###### Current Elements in Min-Heap Priority Queue")
+                    pq_items = current_step.get("priority_queue", [])
+                    if not pq_items:
+                        st.caption("*Priority Queue is currently empty.*")
+                    else:
+                        sorted_pq = sorted(pq_items, key=lambda x: x[0])
+                        for idx, (dist, node) in enumerate(sorted_pq):
+                            root_tag = " [MIN-HEAP ROOT / NEXT EXTRACT-MIN]" if idx == 0 else ""
+                            st.markdown(f"- Index **{idx}**: Router **{node}** (Tentative Cost: **{dist}**){root_tag}")
 
-    rep1, rep2 = st.columns(2)
-    with rep1:
-        st.markdown("#### Dynamic Adjacency List O(V + E)")
-        adj_list = graph.get_adjacency_list()
-        for rid, nbrs in adj_list.items():
-            r = graph.routers.get(rid)
-            st_text = "[ONLINE]" if (r and r.is_online) else "[OFFLINE]"
-            nbr_str = ", ".join([f"{n} (w: {graph.get_weight(rid, n)})" for n in nbrs]) if nbrs else "None"
-            st.markdown(f"**{st_text} {rid}** ({r.name if r else ''}) ➔ `{nbr_str}`")
+                    st.markdown("###### Tentative Distances Table")
+                    tent_dist = current_step.get("tentative_distances", {})
+                    parents = current_step.get("parents", {})
+                    visited_set = set(current_step.get("visited", []))
+                    dist_rows = []
+                    for r in sorted(graph.routers.keys()):
+                        d = tent_dist.get(r, float("inf"))
+                        d_str = "0" if d == 0 else (f"{int(d) if d.is_integer() else d}" if d != float("inf") else "∞")
+                        p = parents.get(r)
+                        p_str = p if p else ("Origin" if d == 0 else "None")
+                        settled_str = "Settled (Visited)" if r in visited_set else "Tentative"
+                        dist_rows.append({"Router": r, "Tentative Cost": d_str, "Predecessor Pointer": p_str, "Status": settled_str})
+                    st.dataframe(pd.DataFrame(dist_rows), width="stretch", height=180)
 
-    with rep2:
-        st.markdown("#### Synchronized Adjacency Matrix O(V^2)")
-        nodes, matrix = graph.get_adjacency_matrix()
-        if nodes:
-            mat_df = pd.DataFrame(matrix, index=nodes, columns=nodes)
-            st.dataframe(mat_df, width="stretch", height=240)
+                else:
+                    items = current_step.get("structure", [])
+                    target = current_step.get("action_target")
+                    st.markdown("###### Current Elements in Structure")
+                    if not items:
+                        st.caption("*Structure is currently empty.*")
+                    else:
+                        for idx, it in enumerate(items):
+                            ptr_str = ""
+                            if is_bfs:
+                                if idx == 0 and len(items) == 1:
+                                    ptr_str = " [FRONT & REAR]"
+                                elif idx == 0:
+                                    ptr_str = " [FRONT]"
+                                elif idx == len(items) - 1:
+                                    ptr_str = " [REAR]"
+                            else:
+                                if idx == len(items) - 1 and len(items) == 1:
+                                    ptr_str = " [TOP & BOTTOM]"
+                                elif idx == len(items) - 1:
+                                    ptr_str = " [TOP]"
+                                elif idx == 0:
+                                    ptr_str = " [BOTTOM]"
 
+                            active_str = " <== ACTIVE IN THIS STEP" if it == target else ""
+                            st.markdown(f"- Index **{idx}**: Router **{it}**{ptr_str}{active_str}")
 
-# =============================================================
-# TAB 9: ALGORITHM BENCHMARK & VIVA GUIDE
-# =============================================================
-with tab_viva:
-    st.markdown("### Algorithm Benchmark & Viva Voce Guide")
+        with ds_c2:
+            st.markdown("##### Real-time Operation Counters")
+            if current_step and sim_res:
+                oc1, oc2 = st.columns(2)
+                with oc1:
+                    if is_dijkstra:
+                        st.metric("Edge Relaxations", f"{current_step.get('relaxations', 0)}")
+                        st.metric("Heap Pushes", f"{current_step.get('heap_pushes', 0)}")
+                    elif is_bfs:
+                        st.metric("Total Enqueues", f"{current_step.get('enqueues', 0)}")
+                        st.metric("Current Queue Size", f"{len(current_step.get('structure', []))}")
+                    else:
+                        st.metric("Total Pushes", f"{current_step.get('pushes', 0)}")
+                        st.metric("Current Stack Size", f"{len(current_step.get('structure', []))}")
+                with oc2:
+                    if is_dijkstra:
+                        st.metric("Heap Pops", f"{current_step.get('heap_pops', 0)}")
+                        st.metric("Peak Heap Size", f"{sim_res.get('max_structure', 0)}")
+                    elif is_bfs:
+                        st.metric("Total Dequeues", f"{current_step.get('dequeues', 0)}")
+                        st.metric("Peak Queue Capacity", f"{sim_res.get('max_structure', 0)}")
+                    else:
+                        st.metric("Total Pops", f"{current_step.get('pops', 0)}")
+                        st.metric("Peak Stack Capacity", f"{sim_res.get('max_structure', 0)}")
 
-    src_cmp = st.session_state.get("source_id", "N1")
-    dst_cmp = st.session_state.get("dest_id", "N7")
-    if src_cmp in graph.routers and dst_cmp in graph.routers:
-        b_res = bfs(graph, src_cmp, dst_cmp)
-        d_res = dfs(graph, src_cmp, dst_cmp)
-        k_res = dijkstra(graph, src_cmp, dst_cmp)
+                if is_dfs:
+                    st.markdown(f"**Backtracking Count:** `{sim_res.get('backtrack_count', 0)}`")
+                    if current_step.get("is_backtrack"):
+                        st.warning(f"Backtracking Active: Dead end reached at '{current_step.get('current_node')}'.")
 
-        comp_table = [
-            {"Property / Metric": "Core Data Structure", "BFS": "FIFO Queue (collections.deque)", "DFS": "LIFO Stack (list)", "Dijkstra": "Min-Heap Priority Queue (heapq)"},
-            {"Property / Metric": "Exploration Principle", "BFS": "Level-by-level concentric", "DFS": "Deepest unvisited branch", "Dijkstra": "Greedy minimum-cost expansion"},
-            {"Property / Metric": "Guarantees Shortest Path?", "BFS": "Yes (Minimum Hops, Unweighted)", "DFS": "No (Finds arbitrary reachable path)", "Dijkstra": "Yes (Minimum Total Weight, w >= 0)"},
-            {"Property / Metric": "Route Discovered?", "BFS": "Yes" if b_res["success"] else "No", "DFS": "Yes" if d_res["success"] else "No", "Dijkstra": "Yes" if k_res["success"] else "No"},
-            {"Property / Metric": "Reconstructed Path", "BFS": " -> ".join(b_res["path"]), "DFS": " -> ".join(d_res["path"]), "Dijkstra": " -> ".join(k_res["path"])},
-            {"Property / Metric": "Route Hop Count", "BFS": f"{b_res['hops']} hops", "DFS": f"{d_res['hops']} hops", "Dijkstra": f"{k_res['hops']} hops"},
-            {"Property / Metric": "Total Path Cost", "BFS": f"{int(b_res.get('path_cost', 0))}", "DFS": f"{int(d_res.get('path_cost', 0))}", "Dijkstra": f"{int(k_res.get('path_cost', 0))}"},
-            {"Property / Metric": "Total Execution Steps", "BFS": f"{len(b_res['steps'])} steps", "DFS": f"{len(d_res['steps'])} steps", "Dijkstra": f"{len(k_res['steps'])} steps"},
-            {"Property / Metric": "Peak Structure Capacity", "BFS": f"{b_res['max_structure']} in Queue", "DFS": f"{d_res['max_structure']} in Stack", "Dijkstra": f"{k_res['max_structure']} in Priority Queue"},
-            {"Property / Metric": "Time Complexity", "BFS": "O(V + E)", "DFS": "O(V + E)", "Dijkstra": "O((V + E) log V)"},
-            {"Property / Metric": "Auxiliary Space Complexity", "BFS": "O(V)", "DFS": "O(V)", "Dijkstra": "O(V)"}
-        ]
-        st.dataframe(pd.DataFrame(comp_table), width="stretch", height=380)
+    with supp_tab2:
+        st.markdown("#### Synchronized Graph Representations")
+        rep1, rep2 = st.columns(2)
+        with rep1:
+            st.markdown("##### Dynamic Adjacency List $O(V + E)$")
+            adj_list = graph.get_adjacency_list()
+            for rid, nbrs in adj_list.items():
+                r = graph.routers.get(rid)
+                st_text = "[ONLINE]" if (r and r.is_online) else "[OFFLINE]"
+                nbr_str = ", ".join([f"{n} (w: {graph.get_weight(rid, n)})" for n in nbrs]) if nbrs else "None"
+                st.markdown(f"**{st_text} {rid}** ({r.name if r else ''}) ➔ `{nbr_str}`")
 
-    st.markdown(
-        r"""
-        #### **Core Viva Voce Concepts**
-        - **Why does BFS find the minimum-hop path?** BFS uses a FIFO queue to discover vertices in non-decreasing order of distance from the source. The first time the destination is enqueued, it is reached via the minimum possible number of edges.
-        - **Why does DFS not guarantee the shortest path?** DFS uses a LIFO stack to dive as deep as possible along one branch before backtracking, potentially returning an elongated detour.
-        - **How does Dijkstra find the minimum-cost path?** Dijkstra uses a Min-Heap priority queue (`heapq`) to greedily extract the router with the lowest tentative path distance and relaxes outgoing edges. With non-negative edge weights ($w \ge 0$), the tentative distance to any settled router is mathematically optimal.
-        - **Why must Dijkstra's edge weights be non-negative ($w \ge 0$)?** If negative edges existed, a previously settled vertex could later have its distance reduced via a negative cycle or path, violating the greedy invariant. (Negative weights require Bellman-Ford).
-        - **How does the visited set prevent infinite loops?** Checking `if neighbor not in visited` before enqueuing/pushing prevents cycling and infinite loops in cyclic graphs.
-        - **Why use Adjacency List over Matrix?** Adjacency list requires $O(V + E)$ memory, which is vastly superior for sparse networks ($E \ll V^2$).
-        """
-    )
+        with rep2:
+            st.markdown("##### Synchronized Adjacency Matrix $O(V^2)$")
+            nodes, matrix = graph.get_adjacency_matrix()
+            if nodes:
+                mat_df = pd.DataFrame(matrix, index=nodes, columns=nodes)
+                st.dataframe(mat_df, width="stretch", height=240)
+
+    with supp_tab3:
+        st.markdown("#### Algorithm Benchmark & Faculty Viva Voce Guide")
+        src_cmp = st.session_state.get("source_id", "N1")
+        dst_cmp = st.session_state.get("dest_id", "N7")
+        if src_cmp in graph.routers and dst_cmp in graph.routers:
+            b_res_v = bfs(graph, src_cmp, dst_cmp)
+            d_res_v = dfs(graph, src_cmp, dst_cmp)
+            k_res_v = dijkstra(graph, src_cmp, dst_cmp)
+
+            comp_table = [
+                {"Property / Metric": "Core Data Structure", "BFS": "FIFO Queue (collections.deque)", "DFS": "LIFO Stack (list)", "Dijkstra": "Min-Heap Priority Queue (heapq)"},
+                {"Property / Metric": "Exploration Principle", "BFS": "Level-by-level concentric", "DFS": "Deepest unvisited branch", "Dijkstra": "Greedy minimum-cost expansion"},
+                {"Property / Metric": "Guarantees Shortest Path?", "BFS": "Yes (Minimum Hops, Unweighted)", "DFS": "No (Finds arbitrary reachable path)", "Dijkstra": "Yes (Minimum Total Weight, w >= 0)"},
+                {"Property / Metric": "Route Discovered?", "BFS": "Yes" if b_res_v["success"] else "No", "DFS": "Yes" if d_res_v["success"] else "No", "Dijkstra": "Yes" if k_res_v["success"] else "No"},
+                {"Property / Metric": "Reconstructed Path", "BFS": " -> ".join(b_res_v["path"]), "DFS": " -> ".join(d_res_v["path"]), "Dijkstra": " -> ".join(k_res_v["path"])},
+                {"Property / Metric": "Route Hop Count", "BFS": f"{b_res_v['hops']} hops", "DFS": f"{d_res_v['hops']} hops", "Dijkstra": f"{k_res_v['hops']} hops"},
+                {"Property / Metric": "Total Path Cost", "BFS": f"{int(b_res_v.get('path_cost', 0))}", "DFS": f"{int(d_res_v.get('path_cost', 0))}", "Dijkstra": f"{int(k_res_v.get('path_cost', 0))}"},
+                {"Property / Metric": "Total Execution Steps", "BFS": f"{len(b_res_v['steps'])} steps", "DFS": f"{len(d_res_v['steps'])} steps", "Dijkstra": f"{len(k_res_v['steps'])} steps"},
+                {"Property / Metric": "Peak Structure Capacity", "BFS": f"{b_res_v['max_structure']} in Queue", "DFS": f"{d_res_v['max_structure']} in Stack", "Dijkstra": f"{k_res_v['max_structure']} in Priority Queue"},
+                {"Property / Metric": "Time Complexity", "BFS": "O(V + E)", "DFS": "O(V + E)", "Dijkstra": "O((V + E) log V)"},
+                {"Property / Metric": "Auxiliary Space Complexity", "BFS": "O(V)", "DFS": "O(V)", "Dijkstra": "O(V)"}
+            ]
+            st.dataframe(pd.DataFrame(comp_table), width="stretch", height=340)
+
+        st.markdown(
+            r"""
+            ##### **Faculty Viva Voce Examination Cheat Sheet**
+            - **CO3 Searching:** Linear Search ($O(n)$) scans each item sequentially; works on unsorted lists. Binary Search ($O(\log n)$) requires sorted data to perform divide-and-conquer, halving the search space each comparison.
+            - **CO3 Sorting:** Bubble Sort repeatedly swaps adjacent inverted pairs ($O(n^2)$). Insertion Sort builds a sorted prefix by shifting larger elements; achieves optimal $O(n)$ best case for already sorted data.
+            - **CO4 Traversal Trees:** Traversal trees have a single root at the start router, contain $E = V_{discovered} - 1$ tree edges, and are strictly acyclic ($0$ loops), whereas the physical network graph contains arbitrary redundant cycles.
+            - **CO5 Graph Routing vs. Table Forwarding:** Graph routing searches the entire topology dynamically on-demand; traditional forwarding stores pre-calculated `Next Hop` values in local forwarding tables for $O(1)$ per-hop lookups.
+            - **Why BFS finds shortest hops:** BFS uses a FIFO queue to discover vertices in non-decreasing order of distance. The first time destination is popped, it is via the minimum number of hops.
+            - **Why DFS does not guarantee shortest hops:** DFS uses a LIFO stack to dive as deep as possible along the first branch, taking detours before backtracking.
+            """
+        )
+
 
 
 # -------------------------------------------------------------

@@ -145,6 +145,10 @@ class Graph:
             self.failed_edges.add(pair)
             return False  # Failed
 
+    def toggle_edge_failure(self, u: str, v: str) -> Optional[bool]:
+        """Alias for toggle_connection_status."""
+        return self.toggle_connection_status(u, v)
+
     def is_edge_active(self, u: str, v: str) -> bool:
         """Checks if a transmission link between u and v is active (not failed)."""
         pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
@@ -163,6 +167,14 @@ class Graph:
             self.routers[rid].is_online = not self.routers[rid].is_online
             return self.routers[rid].is_online
         return None
+
+    def set_router_status(self, router_id: str, is_online: bool) -> bool:
+        """Sets a router explicitly to online or offline."""
+        rid = router_id.strip().upper()
+        if rid in self.routers:
+            self.routers[rid].is_online = bool(is_online)
+            return True
+        return False
 
     def get_edges(self) -> List[Tuple[str, str]]:
         """Returns sorted list of unique undirected edges (u, v)."""
@@ -236,6 +248,82 @@ class Graph:
                     visited.add(nbr)
                     queue.append(nbr)
         return False
+
+    def generate_routing_table(self, source_id: str) -> List[Dict[str, Any]]:
+        """
+        Generates the traditional forwarding/routing table for the selected source router.
+        
+        Demonstrates the contrast between graph-based on-demand route discovery
+        and traditional hop-by-hop routing table lookups:
+        - Destination: Target router ID
+        - Next Hop: The immediate neighbor to which packets for Destination must be forwarded
+        - Hop Count: Minimum number of hops to reach Destination
+        - Status: Local, Direct Neighbor, Reachable, or Unreachable
+        """
+        src = source_id.strip().upper()
+        if src not in self.routers or not self.routers[src].is_online:
+            table: List[Dict[str, Any]] = []
+            for dest in sorted(self.routers.keys()):
+                table.append({
+                    "destination": dest,
+                    "next_hop": "None",
+                    "hops": -1,
+                    "status": "Source Offline" if src in self.routers else "Source Not Found"
+                })
+            return table
+
+        # Run BFS from src over active edges and online routers to find shortest-hop paths
+        parents: Dict[str, Optional[str]] = {src: None}
+        queue = deque([src])
+        visited = {src}
+
+        while queue:
+            curr = queue.popleft()
+            for nbr in sorted(self.adjacency.get(curr, [])):
+                if (nbr in self.routers and 
+                    self.routers[nbr].is_online and 
+                    self.is_edge_active(curr, nbr) and 
+                    nbr not in visited):
+                    visited.add(nbr)
+                    parents[nbr] = curr
+                    queue.append(nbr)
+
+        table = []
+        for dest in sorted(self.routers.keys()):
+            if dest == src:
+                table.append({
+                    "destination": dest,
+                    "next_hop": src,
+                    "hops": 0,
+                    "status": "Local (Self)"
+                })
+            elif dest in parents:
+                # Reconstruct path from src to dest
+                path: List[str] = []
+                curr_node: Optional[str] = dest
+                while curr_node is not None:
+                    path.append(curr_node)
+                    curr_node = parents.get(curr_node)
+                path.reverse()
+                next_hop = path[1] if len(path) > 1 else dest
+                hops = len(path) - 1
+                status = "Direct Neighbor" if hops == 1 else "Reachable"
+                table.append({
+                    "destination": dest,
+                    "next_hop": next_hop,
+                    "hops": hops,
+                    "status": status
+                })
+            else:
+                table.append({
+                    "destination": dest,
+                    "next_hop": "None",
+                    "hops": -1,
+                    "status": "Unreachable"
+                })
+
+        return table
+
 
     def auto_layout(self):
         """Arranges routers in a deterministic circle for clean visualization."""
