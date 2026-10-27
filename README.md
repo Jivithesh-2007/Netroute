@@ -64,6 +64,17 @@ NetRoute aligns directly with **CO1**, **CO2**, and **CO5** of the Data Structur
 - Generates structured research and viva reports containing topology statistics, algorithm metrics, discovered routes, theoretical complexities, and explanations.
 - Downloadable in clean JSON (`netroute_experiment_report.json`) and CSV (`netroute_experiment_report.csv`).
 
+### Feature G: Dual Algorithm Live Arena (BFS vs. DFS Side-by-Side)
+- Side-by-side visualization of BFS (FIFO Queue) and DFS (LIFO Stack) executing concurrently on the identical network topology.
+- Real-time quantitative delta computation:
+  - Route discovered & path differential.
+  - Hop count differential ($\Delta = \text{DFS hops} - \text{BFS hops}$).
+  - Path weight and link cost differential ($\Delta = \text{DFS cost} - \text{BFS cost}$).
+  - Total execution latency differential ($\Delta = \text{DFS ms} - \text{BFS ms}$).
+  - Total traversal steps differential (accounting for DFS dead-end backtracking pops).
+  - Search sequence comparison and data structure operation metrics (enqueues/dequeues vs pushes/pops/backtracks).
+- Exportable side-by-side comparison tables in CSV and JSON formats.
+
 ---
 
 ## 3. Computational Complexity
@@ -98,6 +109,7 @@ NetRoute/
     ├── test_failure_lab.py     # Router and link failure, recovery, and detour comparison
     ├── test_history_and_report.py # History recording, comparison, replay, and JSON/CSV export
     ├── test_challenge.py       # DSA challenge evaluation against actual algorithm results
+    ├── test_comparison.py      # Dual Algorithm Arena BFS vs. DFS comparative tests
     ├── test_simulation.py      # Step navigation, packet hop progression, state reset
     └── test_router.py          # Router dataclass and coordinates
 ```
@@ -126,7 +138,7 @@ python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 **Test Results:**
-- 54 unit tests across 8 test suites passing in `0.053s`.
+- 57 unit tests across 9 test suites passing in `0.017s`.
 - 100% test pass rate with zero regressions.
 
 ---

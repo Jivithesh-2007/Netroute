@@ -679,3 +679,148 @@ def evaluate_challenge_answer(challenge_id: int, user_answer: str) -> Tuple[bool
             return is_correct, ch["explanation"]
     return False, "Challenge not found."
 
+
+def compare_bfs_and_dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
+    """
+    Performs comparative dual analysis of BFS (FIFO Queue) vs. DFS (LIFO Stack)
+    on the identical network topology between specified source and destination.
+    Computes exact differentials in path, hops, cost, execution latency, visited nodes,
+    steps, operations, and data structure footprints.
+    """
+    b_res = bfs(graph, src, dst)
+    d_res = dfs(graph, src, dst)
+
+    b_path = list(b_res.get("path", []))
+    d_path = list(d_res.get("path", []))
+    b_hops = b_res.get("hops", 0)
+    d_hops = d_res.get("hops", 0)
+    b_cost = float(b_res.get("path_cost", 0.0))
+    d_cost = float(d_res.get("path_cost", 0.0))
+    b_time = float(b_res.get("execution_time_ms", 0.0))
+    d_time = float(d_res.get("execution_time_ms", 0.0))
+    b_steps = len(b_res.get("steps", []))
+    d_steps = len(d_res.get("steps", []))
+    b_visited = list(b_res.get("visited", []))
+    d_visited = list(d_res.get("visited", []))
+    b_max_ds = b_res.get("max_structure", 0)
+    d_max_ds = d_res.get("max_structure", 0)
+
+    # Active Plotly state structures for side-by-side visualization
+    b_active = {
+        "is_completed": True,
+        "route_nodes": set(b_path),
+        "route_edges": [tuple(sorted((b_path[i], b_path[i+1]))) for i in range(len(b_path)-1)],
+        "visited_nodes": set(b_visited),
+        "explored_edges": b_res.get("tree_edges", [])
+    }
+    d_active = {
+        "is_completed": True,
+        "route_nodes": set(d_path),
+        "route_edges": [tuple(sorted((d_path[i], d_path[i+1]))) for i in range(len(d_path)-1)],
+        "visited_nodes": set(d_visited),
+        "explored_edges": d_res.get("tree_edges", [])
+    }
+
+    # Differentials
+    hop_delta = d_hops - b_hops
+    cost_delta = round(d_cost - b_cost, 2)
+    time_delta = round(d_time - b_time, 3)
+    steps_delta = d_steps - b_steps
+    visited_delta = len(d_visited) - len(b_visited)
+
+    if b_path == d_path:
+        route_status = "Identical Path Discovered"
+        hop_comparison = f"Both found identical {b_hops}-hop path"
+    elif b_hops < d_hops:
+        route_status = f"BFS Shorter by {hop_delta} Hop{'s' if hop_delta > 1 else ''}"
+        hop_comparison = f"BFS is {hop_delta} hop(s) shorter (BFS: {b_hops} hops vs DFS: {d_hops} hops)"
+    else:
+        route_status = f"DFS Discovered Alternative Route ({d_hops} hops)"
+        hop_comparison = f"DFS {d_hops} hops vs BFS {b_hops} hops"
+
+    comparison_table = [
+        {
+            "Performance Metric": "Discovered Route",
+            "BFS (FIFO Queue)": " -> ".join(b_path) if b_path else "Unreachable",
+            "DFS (LIFO Stack)": " -> ".join(d_path) if d_path else "Unreachable",
+            "Differential (DFS vs. BFS)": "Identical" if b_path == d_path else "Different Paths",
+            "Engineering Takeaway": "BFS guarantees shortest hops; DFS finds arbitrary reachable branch."
+        },
+        {
+            "Performance Metric": "Hop Count",
+            "BFS (FIFO Queue)": f"{b_hops} hops",
+            "DFS (LIFO Stack)": f"{d_hops} hops",
+            "Differential (DFS vs. BFS)": f"{'+' if hop_delta > 0 else ''}{hop_delta} hops",
+            "Engineering Takeaway": "BFS guarantees minimum hops in unweighted graphs." if hop_delta > 0 else "Both discovered paths of equal hop length."
+        },
+        {
+            "Performance Metric": "Total Path Cost / Weight",
+            "BFS (FIFO Queue)": f"{int(b_cost) if b_cost.is_integer() else b_cost}",
+            "DFS (LIFO Stack)": f"{int(d_cost) if d_cost.is_integer() else d_cost}",
+            "Differential (DFS vs. BFS)": f"{'+' if cost_delta > 0 else ''}{cost_delta}",
+            "Engineering Takeaway": "Neither unweighted BFS nor DFS optimizes for link cost."
+        },
+        {
+            "Performance Metric": "Execution Latency",
+            "BFS (FIFO Queue)": f"{b_time:.3f} ms",
+            "DFS (LIFO Stack)": f"{d_time:.3f} ms",
+            "Differential (DFS vs. BFS)": f"{'+' if time_delta > 0 else ''}{time_delta:.3f} ms",
+            "Engineering Takeaway": "Both operate in O(V + E) time; latency depends on branch depth."
+        },
+        {
+            "Performance Metric": "Total Traversal Steps",
+            "BFS (FIFO Queue)": f"{b_steps} steps",
+            "DFS (LIFO Stack)": f"{d_steps} steps",
+            "Differential (DFS vs. BFS)": f"{'+' if steps_delta > 0 else ''}{steps_delta} steps",
+            "Engineering Takeaway": "DFS includes extra pop operations during dead-end backtracking."
+        },
+        {
+            "Performance Metric": "Total Visited Routers",
+            "BFS (FIFO Queue)": f"{len(b_visited)} routers",
+            "DFS (LIFO Stack)": f"{len(d_visited)} routers",
+            "Differential (DFS vs. BFS)": f"{'+' if visited_delta > 0 else ''}{visited_delta} nodes",
+            "Engineering Takeaway": "BFS explores level-by-level; DFS dives deep along the first branch."
+        },
+        {
+            "Performance Metric": "Core Structure Operations",
+            "BFS (FIFO Queue)": f"{b_res.get('total_enqueues', 0)} enqueues / {b_res.get('total_dequeues', 0)} dequeues",
+            "DFS (LIFO Stack)": f"{d_res.get('total_pushes', 0)} pushes / {d_res.get('total_pops', 0)} pops ({d_res.get('backtrack_count', 0)} backtracks)",
+            "Differential (DFS vs. BFS)": "FIFO Queue vs. LIFO Stack",
+            "Engineering Takeaway": "Queue enqueues at rear / dequeues at front; Stack pushes / pops at top."
+        },
+        {
+            "Performance Metric": "Peak Structure Footprint",
+            "BFS (FIFO Queue)": f"{b_max_ds} nodes in Queue",
+            "DFS (LIFO Stack)": f"{d_max_ds} nodes in Stack",
+            "Differential (DFS vs. BFS)": f"{d_max_ds - b_max_ds:+d} nodes",
+            "Engineering Takeaway": "Queue size bounded by graph bandwidth; Stack size bounded by max depth."
+        }
+    ]
+
+    return {
+        "bfs_res": b_res,
+        "dfs_res": d_res,
+        "b_path": b_path,
+        "d_path": d_path,
+        "b_hops": b_hops,
+        "d_hops": d_hops,
+        "b_cost": b_cost,
+        "d_cost": d_cost,
+        "b_time": b_time,
+        "d_time": d_time,
+        "b_steps": b_steps,
+        "d_steps": d_steps,
+        "b_visited": b_visited,
+        "d_visited": d_visited,
+        "b_active": b_active,
+        "d_active": d_active,
+        "hop_delta": hop_delta,
+        "cost_delta": cost_delta,
+        "time_delta": time_delta,
+        "steps_delta": steps_delta,
+        "visited_delta": visited_delta,
+        "route_status": route_status,
+        "hop_comparison": hop_comparison,
+        "comparison_table": comparison_table
+    }
+

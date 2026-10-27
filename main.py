@@ -54,7 +54,7 @@ if st.session_state.get("sim_res") is None:
 # -------------------------------------------------------------
 # 2. PLOTLY GRAPH VISUALIZATION ENGINE (MATCHING REFERENCE UI)
 # -------------------------------------------------------------
-def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_id: str) -> go.Figure:
+def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_id: str, height: int = 450) -> go.Figure:
     """Renders a clean, high-contrast network graph matching the reference UI with real-time traversal animations."""
     fig = go.Figure()
 
@@ -271,7 +271,7 @@ def build_network_figure(graph: Graph, active: Dict[str, Any], src_id: str, dst_
     dy = max(80.0, max_y - min_y)
 
     fig.update_layout(
-        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF", height=450,
+        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF", height=height,
         margin=dict(l=30, r=30, t=40, b=30), hovermode="closest",
         xaxis=dict(range=[min_x - dx * 0.12, max_x + dx * 0.12], showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(range=[max_y + dy * 0.22, min_y - dy * 0.22], showgrid=False, zeroline=False, showticklabels=False)
@@ -688,8 +688,9 @@ with right_col:
 st.write("")
 st.markdown("---")
 
-tab_ds, tab_failure, tab_history, tab_challenges, tab_report, tab_hist, tab_route_diag, tab_representations, tab_viva = st.tabs([
+tab_ds, tab_arena, tab_failure, tab_history, tab_challenges, tab_report, tab_hist, tab_route_diag, tab_representations, tab_viva = st.tabs([
     "Queue, Stack & Heap Inspector (CO1)",
+    "BFS vs. DFS Dual Canvas Arena",
     "Failure & Recovery Lab (Feature C)",
     "Simulation History & Replay (Feature D)",
     "DSA Challenge Mode (Feature E)",
@@ -827,7 +828,196 @@ with tab_ds:
 
 
 # =============================================================
-# TAB 2: NETWORK FAILURE & RECOVERY LAB (FEATURE C)
+# TAB 2: DUAL ALGORITHM LIVE ARENA: BFS VS. DFS COMPARISON
+# =============================================================
+with tab_arena:
+    st.markdown("### Dual Algorithm Live Arena: BFS vs. DFS on Identical Topology")
+    st.caption("Side-by-side comparative execution of Breadth-First Search (FIFO Queue) and Depth-First Search (LIFO Stack) on the exact same network topology.")
+
+    ar_ctrl1, ar_ctrl2, ar_ctrl3 = st.columns([2.5, 2.5, 3])
+    with ar_ctrl1:
+        cmp_src = st.selectbox(
+            "Source Router",
+            options=r_keys,
+            index=r_keys.index(st.session_state.get("source_id", "N1")) if st.session_state.get("source_id") in r_keys else 0,
+            key="cmp_src_sel"
+        )
+    with ar_ctrl2:
+        cmp_dst = st.selectbox(
+            "Destination Router",
+            options=r_keys,
+            index=r_keys.index(st.session_state.get("dest_id", "N7")) if st.session_state.get("dest_id") in r_keys else (len(r_keys) - 1 if r_keys else 0),
+            key="cmp_dst_sel"
+        )
+    with ar_ctrl3:
+        st.write("")
+        if st.button("Load Multi-Route Topology (BFS != DFS Demo)", width="stretch", help="Loads a spine-leaf network where BFS chooses a 3-hop route and DFS chooses a 4-hop route"):
+            st.session_state["graph"] = Graph.from_preset("multi_route")
+            st.session_state["source_id"] = "R1"
+            st.session_state["dest_id"] = "R7"
+            sim.invalidate_simulation()
+            st.rerun()
+
+    # Compute comparative dual execution
+    cmp_data = sim.compare_bfs_and_dfs(graph, cmp_src, cmp_dst)
+
+    # Status banner
+    st.markdown(
+        f"""
+        <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-left:4px solid #2563EB; border-radius:8px; padding:10px 16px; margin:10px 0 16px 0; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <span style="font-weight:700; color:#1E293B; font-size:0.92rem;">Analysis Status:</span>
+                <span style="color:#2563EB; font-weight:800; margin-left:6px;">{cmp_data['route_status']}</span>
+            </div>
+            <div style="font-size:0.84rem; color:#64748B;">
+                {cmp_data['hop_comparison']}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 1. Dual Canvas Side-by-Side View
+    col_bfs, col_dfs = st.columns(2)
+
+    with col_bfs:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span style="font-weight:800; font-size:1.0rem; color:#2563EB;">BFS — BREADTH-FIRST SEARCH</span>
+                    <span style="background:#DBEAFE; color:#1E40AF; font-size:0.75rem; font-weight:700; padding:3px 8px; border-radius:4px;">FIFO QUEUE</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            fig_bfs = build_network_figure(graph, cmp_data["b_active"], cmp_src, cmp_dst, height=360)
+            st.plotly_chart(fig_bfs, width="stretch", config={"displayModeBar": False}, key="fig_bfs_cmp")
+
+            st.markdown('<div class="panel-section-label">BFS DISCOVERED ROUTE</div>', unsafe_allow_html=True)
+            if cmp_data["b_path"]:
+                st.markdown(render_path_pills(cmp_data["b_path"]), unsafe_allow_html=True)
+            else:
+                st.caption("No route discovered.")
+
+            # Metric stats grid
+            b_m1, b_m2 = st.columns(2)
+            with b_m1:
+                st.markdown(render_telemetry_stat("BFS HOP COUNT", f"{cmp_data['b_hops']} (Optimal)"), unsafe_allow_html=True)
+                st.markdown(render_telemetry_stat("BFS EXECUTION TIME", f"{cmp_data['b_time']:.3f} ms", is_latency=True), unsafe_allow_html=True)
+            with b_m2:
+                st.markdown(render_telemetry_stat("BFS PATH COST", str(int(cmp_data['b_cost']))), unsafe_allow_html=True)
+                st.markdown(render_telemetry_stat("BFS VISITED NODES", str(len(cmp_data['b_visited']))), unsafe_allow_html=True)
+
+            st.markdown('<div class="panel-section-label" style="margin-top:8px;">BFS SEARCH SEQUENCE</div>', unsafe_allow_html=True)
+            st.markdown(render_search_sequence(cmp_data["b_visited"]), unsafe_allow_html=True)
+
+            st.caption(f"**Queue Operations:** {cmp_data['bfs_res'].get('total_enqueues', 0)} Enqueues, {cmp_data['bfs_res'].get('total_dequeues', 0)} Dequeues | **Peak Queue Size:** {cmp_data['bfs_res'].get('max_structure', 0)} nodes")
+
+    with col_dfs:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span style="font-weight:800; font-size:1.0rem; color:#7C3AED;">DFS — DEPTH-FIRST SEARCH</span>
+                    <span style="background:#EDE9FE; color:#5B21B6; font-size:0.75rem; font-weight:700; padding:3px 8px; border-radius:4px;">LIFO STACK</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            fig_dfs = build_network_figure(graph, cmp_data["d_active"], cmp_src, cmp_dst, height=360)
+            st.plotly_chart(fig_dfs, width="stretch", config={"displayModeBar": False}, key="fig_dfs_cmp")
+
+            st.markdown('<div class="panel-section-label">DFS DISCOVERED ROUTE</div>', unsafe_allow_html=True)
+            if cmp_data["d_path"]:
+                st.markdown(render_path_pills(cmp_data["d_path"]), unsafe_allow_html=True)
+            else:
+                st.caption("No route discovered.")
+
+            # Metric stats grid
+            d_m1, d_m2 = st.columns(2)
+            with d_m1:
+                st.markdown(render_telemetry_stat("DFS HOP COUNT", f"{cmp_data['d_hops']} (Valid Path)"), unsafe_allow_html=True)
+                st.markdown(render_telemetry_stat("DFS EXECUTION TIME", f"{cmp_data['d_time']:.3f} ms", is_latency=True), unsafe_allow_html=True)
+            with d_m2:
+                st.markdown(render_telemetry_stat("DFS PATH COST", str(int(cmp_data['d_cost']))), unsafe_allow_html=True)
+                st.markdown(render_telemetry_stat("DFS VISITED NODES", str(len(cmp_data['d_visited']))), unsafe_allow_html=True)
+
+            st.markdown('<div class="panel-section-label" style="margin-top:8px;">DFS SEARCH SEQUENCE</div>', unsafe_allow_html=True)
+            st.markdown(render_search_sequence(cmp_data["d_visited"]), unsafe_allow_html=True)
+
+            st.caption(f"**Stack Operations:** {cmp_data['dfs_res'].get('total_pushes', 0)} Pushes, {cmp_data['dfs_res'].get('total_pops', 0)} Pops, {cmp_data['dfs_res'].get('backtrack_count', 0)} Backtracks | **Peak Stack Depth:** {cmp_data['dfs_res'].get('max_structure', 0)} nodes")
+
+    # 2. Delta & Differentials Summary Cards
+    st.write("")
+    st.markdown("#### Performance Differentials (DFS vs. BFS)")
+    delta_c1, delta_c2, delta_c3, delta_c4 = st.columns(4)
+    with delta_c1:
+        hop_lbl = f"{cmp_data['hop_delta']:+d} hops" if cmp_data['hop_delta'] != 0 else "0 hops"
+        st.metric("Hop Differential", hop_lbl, help="Positive value means DFS took an elongated detour compared to BFS.")
+    with delta_c2:
+        cost_lbl = f"{cmp_data['cost_delta']:+f}" if cmp_data['cost_delta'] != 0 else "0.0"
+        st.metric("Cost Differential", cost_lbl, help="Difference in total path weight.")
+    with delta_c3:
+        time_lbl = f"{cmp_data['time_delta']:+.3f} ms"
+        st.metric("Latency Differential", time_lbl, help="Difference in execution time.")
+    with delta_c4:
+        steps_lbl = f"{cmp_data['steps_delta']:+d} steps"
+        st.metric("Step Differential", steps_lbl, help="Extra steps in DFS correspond to backtracking pop operations.")
+
+    # 3. Comprehensive Differential Table
+    st.write("")
+    st.markdown("#### Granular Metric Comparison Table")
+    cmp_df = pd.DataFrame(cmp_data["comparison_table"])
+    st.dataframe(cmp_df, width="stretch", height=320)
+
+    # 4. Export Comparison
+    exp_c1, exp_c2 = st.columns(2)
+    with exp_c1:
+        st.download_button(
+            "Download BFS vs. DFS Comparison (CSV)",
+            data=cmp_df.to_csv(index=False),
+            file_name="netroute_bfs_vs_dfs_comparison.csv",
+            mime="text/csv",
+            width="stretch",
+            key="dl_bfs_dfs_csv"
+        )
+    with exp_c2:
+        st.download_button(
+            "Download Comparison Telemetry (JSON)",
+            data=json.dumps({
+                "endpoints": {"source": cmp_src, "destination": cmp_dst},
+                "bfs": {
+                    "path": cmp_data["b_path"], "hops": cmp_data["b_hops"], "cost": cmp_data["b_cost"],
+                    "time_ms": cmp_data["b_time"], "steps": cmp_data["b_steps"], "visited": cmp_data["b_visited"]
+                },
+                "dfs": {
+                    "path": cmp_data["d_path"], "hops": cmp_data["d_hops"], "cost": cmp_data["d_cost"],
+                    "time_ms": cmp_data["d_time"], "steps": cmp_data["d_steps"], "visited": cmp_data["d_visited"]
+                },
+                "differentials": {
+                    "hop_delta": cmp_data["hop_delta"], "cost_delta": cmp_data["cost_delta"],
+                    "time_delta_ms": cmp_data["time_delta"], "steps_delta": cmp_data["steps_delta"]
+                }
+            }, indent=2),
+            file_name="netroute_bfs_vs_dfs_comparison.json",
+            mime="application/json",
+            width="stretch",
+            key="dl_bfs_dfs_json"
+        )
+
+    # 5. Theoretical Comparison & Educational Summary
+    st.markdown(
+        """
+        > **Why BFS and DFS Differ:**
+        > - **BFS (Breadth-First Search)** explores vertices radially outward in concentric waves using a **FIFO queue**. The first time the destination router is enqueued, it is mathematically guaranteed to be via the **minimum number of hops**.
+        > - **DFS (Depth-First Search)** dives as deep as possible along a single transmission branch using a **LIFO stack**. If it wanders into an elongated branch that reaches the destination, it returns that valid path regardless of hop count. If it hits a dead end, it pops elements to backtrack.
+        """
+    )
+
+
+# =============================================================
+# TAB 3: NETWORK FAILURE & RECOVERY LAB (FEATURE C)
 # =============================================================
 with tab_failure:
     st.markdown("### Network Failure & Fault Recovery Lab (Feature C)")
