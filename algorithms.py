@@ -313,6 +313,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
 
     # Reconstruct shortest path using parent pointers
     path = reconstruct_route_from_parents(parents, dst)
+    path_cost = sum(graph.get_weight(path[i], path[i+1]) for i in range(len(path) - 1)) if len(path) > 1 else 0.0
 
     steps.append({
         "step": len(steps) + 1,
@@ -328,7 +329,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "visited": list(visited_order),
         "parents": dict(parents),
         "active_edge": None,
-        "description": f"BFS shortest route reconstructed via parent pointers: {' -> '.join(path)} ({len(path) - 1} hops)."
+        "description": f"BFS shortest route reconstructed via parent pointers: {' -> '.join(path)} ({len(path) - 1} hops, cost: {int(path_cost) if path_cost.is_integer() else path_cost})."
     })
 
     return {
@@ -336,6 +337,7 @@ def bfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "success": True,
         "path": path,
         "hops": len(path) - 1,
+        "path_cost": path_cost,
         "steps": steps,
         "visited": visited_order,
         "parents": parents,
@@ -651,6 +653,8 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
             "message": f"No route found between '{src}' and '{dst}'."
         }
 
+    path_cost = sum(graph.get_weight(found_path[i], found_path[i+1]) for i in range(len(found_path) - 1)) if len(found_path) > 1 else 0.0
+
     steps.append({
         "step": len(steps) + 1,
         "operation": "COMPLETE",
@@ -666,7 +670,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "visited": list(visited_order),
         "parents": dict(parents),
         "active_edge": None,
-        "description": f"DFS route discovered: {' -> '.join(found_path)} ({len(found_path) - 1} hops)."
+        "description": f"DFS route discovered: {' -> '.join(found_path)} ({len(found_path) - 1} hops, cost: {int(path_cost) if path_cost.is_integer() else path_cost})."
     })
 
     return {
@@ -674,6 +678,7 @@ def dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "success": True,
         "path": found_path,
         "hops": len(found_path) - 1,
+        "path_cost": path_cost,
         "steps": steps,
         "visited": visited_order,
         "parents": parents,

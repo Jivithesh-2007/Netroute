@@ -121,6 +121,15 @@ class TestNetworkGraph(unittest.TestCase):
         ok, _ = validate_router_id("R-1!")
         self.assertFalse(ok)
 
+    def test_reference_preset_and_edge_weights(self):
+        self.graph.load_preset("reference")
+        self.assertEqual(len(self.graph.routers), 7)
+        self.assertIn("N1", self.graph.routers)
+        self.assertIn("N7", self.graph.routers)
+        self.assertEqual(self.graph.get_weight("N1", "N2"), 4.0)
+        self.assertEqual(self.graph.get_weight("N6", "N7"), 1.0)
+        self.assertTrue(self.graph.is_connected())
+
 
 if __name__ == "__main__":
     unittest.main()

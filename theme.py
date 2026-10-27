@@ -232,6 +232,109 @@ CUSTOM_CSS = f"""
         line-height: 1.45;
     }}
 
+    /* Panel Card (Matching Reference Dashboard) */
+    .panel-card {{
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        margin-bottom: 16px;
+    }}
+    .panel-title {{
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0F172A !important;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }}
+    .panel-section-label {{
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748B !important;
+        margin-bottom: 6px;
+    }}
+
+    /* Telemetry 2x2 Grid Stats */
+    .telemetry-cell {{
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }}
+    .telemetry-label {{
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748B !important;
+        margin-bottom: 2px;
+    }}
+    .telemetry-value {{
+        font-size: 1.55rem;
+        font-weight: 800;
+        color: #0F172A !important;
+        line-height: 1.15;
+    }}
+    .telemetry-value-latency {{
+        color: #10B981 !important;
+    }}
+
+    /* Calculated Path Route (Black Pill Badges) */
+    .path-pill-container {{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+    }}
+    .path-pill {{
+        background: #0F172A;
+        color: #FFFFFF !important;
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        display: inline-block;
+    }}
+    .path-arrow {{
+        color: #64748B !important;
+        font-weight: 700;
+        font-size: 0.95rem;
+    }}
+
+    /* Search Traversal Sequence (Dark Navy Box) */
+    .search-sequence-box {{
+        background: #0F172A;
+        color: #F8FAFC !important;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+        font-size: 0.88rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        overflow-x: auto;
+    }}
+
+    /* Graph Overlay Badge */
+    .graph-overlay-badge {{
+        background: #1E293B;
+        color: #F8FAFC !important;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }}
+
     /* Alert / Banner Boxes */
     div[data-testid="stAlert"] {{
         background-color: #FFFFFF !important;
@@ -244,6 +347,36 @@ CUSTOM_CSS = f"""
     }}
 </style>
 """
+
+
+def render_telemetry_stat(label: str, value: str, is_latency: bool = False) -> str:
+    """Renders a single statistic box for the Engine Telemetry Results 2x2 grid."""
+    val_class = "telemetry-value telemetry-value-latency" if is_latency else "telemetry-value"
+    return f"""
+    <div class="telemetry-cell">
+        <div class="telemetry-label">{label}</div>
+        <div class="{val_class}">{value}</div>
+    </div>
+    """
+
+
+def render_path_pills(path: List[str]) -> str:
+    """Renders dark pill badges connected with arrows matching reference UI."""
+    if not path:
+        return '<div style="color:#64748B; font-style:italic;">No path discovered</div>'
+    items = []
+    for i, node in enumerate(path):
+        items.append(f'<span class="path-pill">{node}</span>')
+        if i < len(path) - 1:
+            items.append('<span class="path-arrow">➔</span>')
+    return f'<div class="path-pill-container">{" ".join(items)}</div>'
+
+
+def render_search_sequence(visited: List[str]) -> str:
+    """Renders the search traversal sequence in a dark navy container."""
+    if not visited:
+        return '<div class="search-sequence-box">No traversal recorded</div>'
+    return f'<div class="search-sequence-box">{" ➔ ".join(visited)}</div>'
 
 
 def render_metric_card(label: str, value: str, sub: str = "", color: str = PRIMARY) -> str:

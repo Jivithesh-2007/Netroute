@@ -49,6 +49,7 @@ class Graph:
     def __init__(self):
         self.routers: Dict[str, Router] = {}
         self.adjacency: Dict[str, List[str]] = {}
+        self.weights: Dict[Tuple[str, str], float] = {}
 
     def add_router(self, router_id: str, name: str = "", x: float = 200.0, y: float = 200.0, is_online: bool = True) -> bool:
         """Adds a new router with unique ID validation."""
@@ -71,6 +72,7 @@ class Graph:
         del self.adjacency[rid]
         for u in self.adjacency:
             self.adjacency[u] = [v for v in self.adjacency[u] if v != rid]
+        self.weights = {k: w for k, w in self.weights.items() if rid not in k}
         return True
 
     def rename_router(self, router_id: str, new_name: str) -> bool:
@@ -81,8 +83,8 @@ class Graph:
             return True
         return False
 
-    def add_connection(self, u: str, v: str) -> bool:
-        """Adds an undirected transmission link between routers u and v."""
+    def add_connection(self, u: str, v: str, weight: float = 1.0) -> bool:
+        """Adds an undirected transmission link between routers u and v with weight."""
         u_id, v_id = u.strip().upper(), v.strip().upper()
         if u_id not in self.routers or v_id not in self.routers or u_id == v_id:
             return False
@@ -90,7 +92,14 @@ class Graph:
             return False  # Link already exists
         self.adjacency[u_id].append(v_id)
         self.adjacency[v_id].append(u_id)
+        pair = tuple(sorted((u_id, v_id)))
+        self.weights[pair] = float(weight)
         return True
+
+    def get_weight(self, u: str, v: str) -> float:
+        """Returns the weight / cost of the link between u and v."""
+        pair = tuple(sorted((u.strip().upper(), v.strip().upper())))
+        return self.weights.get(pair, 1.0)
 
     def remove_connection(self, u: str, v: str) -> bool:
         """Removes the transmission link between routers u and v."""
@@ -98,6 +107,8 @@ class Graph:
         if u_id in self.adjacency and v_id in self.adjacency[u_id]:
             self.adjacency[u_id].remove(v_id)
             self.adjacency[v_id].remove(u_id)
+            pair = tuple(sorted((u_id, v_id)))
+            self.weights.pop(pair, None)
             return True
         return False
 
@@ -199,6 +210,7 @@ class Graph:
         """Clears all routers and connections."""
         self.routers.clear()
         self.adjacency.clear()
+        self.weights.clear()
 
     def load_preset(self, preset_name: str):
         """Loads educational topology presets."""
@@ -267,8 +279,50 @@ class Graph:
             for u, v in [("R1", "R2"), ("R2", "R3"), ("R1", "R4"), ("R4", "R3"), ("R3", "R5")]:
                 self.add_connection(u, v)
 
+        elif p in ("reference", "lan_wan", "default_ui"):
+            # Reference LAN/WAN 7-node network matching user screenshot
+            import os
+            import json
+            ref_file = os.path.join(os.path.dirname(__file__), "data", "reference_network.json")
+            loaded = False
+            if os.path.exists(ref_file):
+                try:
+                    with open(ref_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    ok, _ = self.load_from_dict(data)
+                    if ok:
+                        loaded = True
+                except Exception:
+                    loaded = False
+
+            if not loaded:
+                nodes = [
+                    ("N1", "Server A (Src)", 100.0, 220.0),
+                    ("N2", "Router 1", 230.0, 140.0),
+                    ("N3", "Router 2", 230.0, 300.0),
+                    ("N4", "Router 3", 380.0, 140.0),
+                    ("N5", "Router 4", 380.0, 300.0),
+                    ("N6", "Switch B", 510.0, 220.0),
+                    ("N7", "Server B (Dst)", 630.0, 220.0)
+                ]
+                for rid, name, x, y in nodes:
+                    self.add_router(rid, name=name, x=x, y=y)
+                links = [
+                    ("N1", "N2", 4.0),
+                    ("N1", "N3", 8.0),
+                    ("N2", "N3", 3.0),
+                    ("N2", "N4", 10.0),
+                    ("N3", "N5", 2.0),
+                    ("N4", "N5", 5.0),
+                    ("N4", "N6", 4.0),
+                    ("N5", "N6", 7.0),
+                    ("N6", "N7", 1.0)
+                ]
+                for u, v, w in links:
+                    self.add_connection(u, v, weight=w)
+
         else:
-            # Default balanced 6-router mesh
+            # Default balanced 6-router mesh (R1 to R6)
             import os
             import json
             sample_file = os.path.join(os.path.dirname(__file__), "data", "sample_network.json")
@@ -353,7 +407,7 @@ class Graph:
         """Serializes topology to a portable dictionary format."""
         return {
             "routers": [r.to_dict() for r in self.routers.values()],
-            "edges": self.get_edges()
+            "edges": [[u, v, self.get_weight(u, v)] for (u, v) in self.get_edges()]
         }
 
     def load_from_dict(self, data: Dict[str, Any]) -> Tuple[bool, str]:
@@ -373,7 +427,8 @@ class Graph:
             )
         for edge in data["edges"]:
             if len(edge) >= 2:
-                self.add_connection(edge[0], edge[1])
+                w = float(edge[2]) if len(edge) >= 3 else 1.0
+                self.add_connection(edge[0], edge[1], weight=w)
         return True, f"Loaded {len(self.routers)} routers and {len(self.get_edges())} connections."
 
 

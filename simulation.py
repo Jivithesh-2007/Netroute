@@ -18,7 +18,7 @@ def init_session():
     """Initializes standard session state variables if not already initialized."""
     if "graph" not in st.session_state:
         g = Graph()
-        g.load_preset("sample")
+        g.load_preset("reference")
         st.session_state["graph"] = g
 
     if "sim_res" not in st.session_state:
@@ -43,10 +43,10 @@ def init_session():
         st.session_state["selected_algo"] = "BFS (Shortest-Hop)"
 
     if "source_id" not in st.session_state:
-        st.session_state["source_id"] = "R1"
+        st.session_state["source_id"] = "N1" if "N1" in st.session_state["graph"].routers else ("R1" if "R1" in st.session_state["graph"].routers else (list(st.session_state["graph"].routers.keys())[0] if st.session_state["graph"].routers else "N1"))
 
     if "dest_id" not in st.session_state:
-        st.session_state["dest_id"] = "R6"
+        st.session_state["dest_id"] = "N7" if "N7" in st.session_state["graph"].routers else ("R6" if "R6" in st.session_state["graph"].routers else (list(st.session_state["graph"].routers.keys())[-1] if st.session_state["graph"].routers else "N7"))
 
 
 def get_simulation_status() -> str:

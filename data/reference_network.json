@@ -1,0 +1,23 @@
+{
+  "directed": false,
+  "routers": [
+    { "id": "N1", "name": "Server A (Src)", "x": 100.0, "y": 220.0, "is_online": true },
+    { "id": "N2", "name": "Router 1", "x": 230.0, "y": 140.0, "is_online": true },
+    { "id": "N3", "name": "Router 2", "x": 230.0, "y": 300.0, "is_online": true },
+    { "id": "N4", "name": "Router 3", "x": 380.0, "y": 140.0, "is_online": true },
+    { "id": "N5", "name": "Router 4", "x": 380.0, "y": 300.0, "is_online": true },
+    { "id": "N6", "name": "Switch B", "x": 510.0, "y": 220.0, "is_online": true },
+    { "id": "N7", "name": "Server B (Dst)", "x": 630.0, "y": 220.0, "is_online": true }
+  ],
+  "edges": [
+    ["N1", "N2", 4.0],
+    ["N1", "N3", 8.0],
+    ["N2", "N3", 3.0],
+    ["N2", "N4", 10.0],
+    ["N3", "N5", 2.0],
+    ["N4", "N5", 5.0],
+    ["N4", "N6", 4.0],
+    ["N5", "N6", 7.0],
+    ["N6", "N7", 1.0]
+  ]
+}

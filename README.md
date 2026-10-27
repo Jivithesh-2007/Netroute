@@ -64,13 +64,14 @@ NetRoute/
 
 ## 4. Built-in Topologies & Presets
 
-1. **Sample (Default):** Balanced 6-router interconnected mesh.
-2. **Direct Route:** Linear 4-node chain demonstrating sequential forwarding.
-3. **Multiple Routes (Spine/Leaf):** Dual-path topology demonstrating why BFS chooses the 3-hop path while DFS may traverse the 4-hop branch.
-4. **Cyclic Network:** Multi-loop mesh demonstrating visited-set loop avoidance.
-5. **Disconnected Subnets:** Segmented network demonstrating partition detection and reachability failure.
-6. **Offline Router Barrier:** Network with a disabled bridge router demonstrating dynamic detour routing.
-7. **Random Generators:** Generates connected or disconnected random networks ($3 \le V \le 10$).
+1. **Reference LAN/WAN (Default):** 7-node network matching the dashboard UI (N1-N7 with weighted links).
+2. **Sample Mesh:** Balanced 6-router interconnected mesh.
+3. **Direct Route:** Linear 4-node chain demonstrating sequential forwarding.
+4. **Multiple Routes (Spine/Leaf):** Dual-path topology demonstrating why BFS chooses the 3-hop path while DFS may traverse the 4-hop branch.
+5. **Cyclic Network:** Multi-loop mesh demonstrating visited-set loop avoidance.
+6. **Disconnected Subnets:** Segmented network demonstrating partition detection and reachability failure.
+7. **Offline Router Barrier:** Network with a disabled bridge router demonstrating dynamic detour routing.
+8. **Random Generators:** Generates connected or disconnected random networks ($3 \le V \le 10$).
 
 ---
 
@@ -94,5 +95,5 @@ Open your browser at `http://localhost:8501`.
 ```bash
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
-All 30 unit tests verify graph operations, rename features, reachability, BFS, DFS, queue/stack mechanics, and simulation playback state.
+All 31 unit tests verify graph operations, edge weights, reference topology, rename features, reachability, BFS, DFS, queue/stack mechanics, and simulation playback state.
 
