@@ -19,7 +19,8 @@ from theme import (
 )
 from network import Graph, validate_router_id
 from algorithms import (
-    bfs, dfs, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree
+    bfs, dfs, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree,
+    compare_bfs_dfs
 )
 import simulation as sim
 
@@ -402,6 +403,183 @@ def build_traversal_tree_figure(tree_data: Dict[str, Any], src_id: str, dst_id: 
     return fig
 
 
+def build_algo_result_figure(
+    graph: Graph,
+    res: Dict[str, Any],
+    src_id: str,
+    dst_id: str,
+    title_label: str = "Algorithm Route",
+    primary_color: str = "#2563EB",
+    secondary_color: str = "#38BDF8",
+    height: int = 370
+) -> go.Figure:
+    """Renders a dedicated network graph highlighting the discovered path and explored nodes for an algorithm."""
+    fig = go.Figure()
+
+    if not graph.routers:
+        fig.add_annotation(
+            text="Network is empty. Please select a topology preset.",
+            xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+            font=dict(size=14, color=TEXT_MUTED)
+        )
+        fig.update_layout(paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF", height=height)
+        return fig
+
+    path = res.get("path", [])
+    path_nodes = set(path)
+    visited_nodes = set(res.get("visited", []))
+
+    # Build route edges set (undirected)
+    route_edges = set()
+    for i in range(len(path) - 1):
+        route_edges.add(tuple(sorted((path[i], path[i + 1]))))
+
+    # Explored edges from tree_edges
+    explored_edges = set()
+    for u, v in res.get("tree_edges", []):
+        explored_edges.add(tuple(sorted((u, v))))
+
+    # A. Draw Links
+    for u, v in graph.get_edges():
+        if u not in graph.routers or v not in graph.routers:
+            continue
+        e = tuple(sorted((u, v)))
+        x1, y1 = graph.routers[u].x, graph.routers[u].y
+        x2, y2 = graph.routers[v].x, graph.routers[v].y
+        weight = graph.get_weight(u, v)
+
+        if not graph.is_edge_active(u, v):
+            line_color = "#EF4444"
+            line_width = 2.0
+            line_dash = "dot"
+        elif e in route_edges:
+            line_color = primary_color
+            line_width = 4.2
+            line_dash = "solid"
+        elif e in explored_edges:
+            line_color = secondary_color
+            line_width = 2.2
+            line_dash = "dash"
+        else:
+            line_color = "#E2E8F0"
+            line_width = 1.6
+            line_dash = "solid"
+
+        fig.add_trace(go.Scatter(
+            x=[x1, x2], y=[y1, y2],
+            mode="lines",
+            line=dict(color=line_color, width=line_width, dash=line_dash),
+            hoverinfo="none",
+            showlegend=False
+        ))
+
+        # Weight badge on link
+        mid_x = (x1 + x2) / 2.0
+        mid_y = (y1 + y2) / 2.0
+        w_text = str(int(weight) if weight.is_integer() else weight)
+
+        fig.add_annotation(
+            x=mid_x, y=mid_y,
+            text=f"<b>{w_text}</b>",
+            showarrow=False,
+            font=dict(size=9, color="#475569"),
+            bgcolor="#FFFFFF",
+            bordercolor="#CBD5E1",
+            borderwidth=1,
+            borderpad=2,
+            opacity=0.9
+        )
+
+    # B. Draw Router Nodes
+    nodes = sorted(graph.routers.keys())
+    node_x, node_y, node_labels, node_colors, border_colors, text_colors, hover_texts = [], [], [], [], [], [], []
+
+    for rid in nodes:
+        r = graph.routers[rid]
+        node_x.append(r.x)
+        node_y.append(r.y)
+        node_labels.append(rid)
+
+        if not r.is_online:
+            fill_c = "#94A3B8"
+            border_c = "#475569"
+            txt_c = "#FFFFFF"
+        elif rid == src_id:
+            fill_c = "#10B981"
+            border_c = "#059669"
+            txt_c = "#FFFFFF"
+        elif rid == dst_id:
+            fill_c = "#F59E0B"
+            border_c = "#D97706"
+            txt_c = "#FFFFFF"
+        elif rid in path_nodes:
+            fill_c = primary_color
+            border_c = primary_color
+            txt_c = "#FFFFFF"
+        elif rid in visited_nodes:
+            fill_c = secondary_color
+            border_c = "#0284C7"
+            txt_c = "#FFFFFF"
+        else:
+            fill_c = "#FFFFFF"
+            border_c = "#CBD5E1"
+            txt_c = "#64748B"
+
+        node_colors.append(fill_c)
+        border_colors.append(border_c)
+        text_colors.append(txt_c)
+
+        sub_text = r.name
+        if rid == src_id and "(Src)" not in sub_text:
+            sub_text += " (Src)"
+        elif rid == dst_id and "(Dst)" not in sub_text:
+            sub_text += " (Dst)"
+
+        sub_color = "#10B981" if rid == src_id else ("#F59E0B" if rid == dst_id else "#1E293B")
+
+        fig.add_annotation(
+            x=r.x, y=r.y - 24,
+            text=f"<b>{sub_text}</b>",
+            showarrow=False,
+            font=dict(size=9, color=sub_color),
+            xanchor="center", yanchor="bottom"
+        )
+
+        nbrs = sorted(graph.adjacency.get(rid, []))
+        hover_texts.append(
+            f"<b>Router {rid}</b> ({r.name})<br>"
+            f"In Discovered Route: {'Yes' if rid in path_nodes else 'No'}<br>"
+            f"Visited During Traversal: {'Yes' if rid in visited_nodes else 'No'}<br>"
+            f"Online Status: {'Online' if r.is_online else 'Offline'}<br>"
+            f"Neighbors: {', '.join(nbrs) if nbrs else 'None'}"
+        )
+
+    fig.add_trace(go.Scatter(
+        x=node_x, y=node_y,
+        mode="markers+text",
+        marker=dict(size=32, color=node_colors, line=dict(color=border_colors, width=2.4)),
+        text=node_labels,
+        textposition="middle center",
+        textfont=dict(size=10, color=text_colors, family="-apple-system, sans-serif"),
+        hoverinfo="text", hovertext=hover_texts, showlegend=False
+    ))
+
+    all_x = [r.x for r in graph.routers.values()]
+    all_y = [r.y for r in graph.routers.values()]
+    min_x, max_x = min(all_x), max(all_x)
+    min_y, max_y = min(all_y), max(all_y)
+    dx = max(80.0, max_x - min_x)
+    dy = max(80.0, max_y - min_y)
+
+    fig.update_layout(
+        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF", height=height,
+        margin=dict(l=25, r=25, t=30, b=25), hovermode="closest",
+        xaxis=dict(range=[min_x - dx * 0.12, max_x + dx * 0.12], showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(range=[max_y + dy * 0.22, min_y - dy * 0.22], showgrid=False, zeroline=False, showticklabels=False)
+    )
+    return fig
+
+
 # -------------------------------------------------------------
 # 4. STREAMLIT SIDEBAR
 # -------------------------------------------------------------
@@ -543,8 +721,9 @@ with st.sidebar.expander("Quick Router Management", icon=":material/tune:", expa
 st.title("NetRoute — Network Packet Routing")
 st.markdown("*Interactive Network Packet Routing Simulator demonstrating BFS, DFS, and Traversal Trees.*")
 
-tab_routing, tab_co3, tab_co4, tab_co5 = st.tabs([
+tab_routing, tab_bfs_dfs, tab_co3, tab_co4, tab_co5 = st.tabs([
     "Network Routing",
+    "BFS vs. DFS Comparison",
     "CO3: Searching & Sorting",
     "CO4: Routing Traversal Tree",
     "CO5: Routing Table Forwarding"
@@ -860,9 +1039,414 @@ with tab_routing:
 
 
 # =============================================================
+# TAB: BFS VS. DFS COMPARISON & EVALUATION ENGINE
+# =============================================================
+with tab_bfs_dfs:
+    st.markdown("### Breadth-First Search (BFS) vs. Depth-First Search (DFS) Evaluation")
+    st.markdown(
+        "*Side-by-side empirical and theoretical comparison of FIFO Queue-based breadth traversal "
+        "versus LIFO Stack-based depth traversal in network packet routing.*"
+    )
+
+    if not graph.routers:
+        st.warning("Network graph is empty. Please select or initialize a topology in the sidebar.")
+    else:
+        router_keys = sorted(list(graph.routers.keys()))
+        default_src = st.session_state.get("source_id", router_keys[0])
+        default_dst = st.session_state.get("dest_id", router_keys[-1] if len(router_keys) > 1 else router_keys[0])
+        if default_src not in router_keys:
+            default_src = router_keys[0]
+        if default_dst not in router_keys:
+            default_dst = router_keys[-1]
+
+        # Top Control Bar
+        cmp_c1, cmp_c2, cmp_c3 = st.columns([2, 2, 1.5])
+        with cmp_c1:
+            cmp_src = st.selectbox(
+                "Source Router (Origin)",
+                options=router_keys,
+                index=router_keys.index(default_src),
+                key="cmp_src_selector"
+            )
+        with cmp_c2:
+            cmp_dst = st.selectbox(
+                "Destination Router (Target)",
+                options=router_keys,
+                index=router_keys.index(default_dst),
+                key="cmp_dst_selector"
+            )
+        with cmp_c3:
+            st.write("")
+            st.write("")
+            run_cmp = st.button("Re-evaluate Comparison", icon=":material/compare_arrows:", type="primary", use_container_width=True)
+
+        # Compute or retrieve comparison
+        cmp_cache = st.session_state.get("bfs_dfs_comp_res")
+        if run_cmp or not cmp_cache or cmp_cache.get("source") != cmp_src or cmp_cache.get("destination") != cmp_dst or cmp_cache.get("graph_size") != len(graph.routers):
+            cmp_res = compare_bfs_dfs(graph, cmp_src, cmp_dst)
+            cmp_res["graph_size"] = len(graph.routers)
+            st.session_state["bfs_dfs_comp_res"] = cmp_res
+        else:
+            cmp_res = cmp_cache
+
+        bfs_info = cmp_res["bfs"]
+        dfs_info = cmp_res["dfs"]
+
+        st.write("")
+
+        # -------------------------------------------------------------
+        # 1. EXECUTIVE KPI SCORECARD
+        # -------------------------------------------------------------
+        kpi_c1, kpi_c2, kpi_c3, kpi_c4 = st.columns(4)
+
+        with kpi_c1:
+            hop_delta_text = f"+{cmp_res['hop_delta']} extra hops" if cmp_res['hop_delta'] > 0 else "Identical hop count"
+            st.markdown(
+                f'<div class="metric-card" style="border-top:3px solid #2563EB;">'
+                f'<div class="metric-card-label">Hop Count (Path Length)</div>'
+                f'<div class="metric-card-val"><span style="color:#2563EB;">{cmp_res["bfs_hops"]}</span> vs <span style="color:#7C3AED;">{cmp_res["dfs_hops"]}</span></div>'
+                f'<div style="font-size:0.80rem; color:#475569;">BFS: {cmp_res["bfs_hops"]} hops | DFS: {cmp_res["dfs_hops"]} hops ({hop_delta_text})</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        with kpi_c2:
+            st.markdown(
+                f'<div class="metric-card" style="border-top:3px solid {cmp_res["verdict_color"]};">'
+                f'<div class="metric-card-label">Routing Optimality</div>'
+                f'<div class="metric-card-val" style="font-size:1.15rem; color:{cmp_res["verdict_color"]};">{cmp_res["verdict_badge"]}</div>'
+                f'<div style="font-size:0.80rem; color:#475569;">BFS provably guarantees minimal hops</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        with kpi_c3:
+            st.markdown(
+                f'<div class="metric-card" style="border-top:3px solid #0891B2;">'
+                f'<div class="metric-card-label">Exploration Footprint</div>'
+                f'<div class="metric-card-val"><span style="color:#2563EB;">{cmp_res["bfs_visited_count"]}</span> vs <span style="color:#7C3AED;">{cmp_res["dfs_visited_count"]}</span></div>'
+                f'<div style="font-size:0.80rem; color:#475569;">Coverage: BFS {cmp_res["bfs_coverage_pct"]}% | DFS {cmp_res["dfs_coverage_pct"]}%</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        with kpi_c4:
+            bfs_max_mem = bfs_info.get("max_structure", 0)
+            dfs_max_mem = dfs_info.get("max_structure", 0)
+            st.markdown(
+                f'<div class="metric-card" style="border-top:3px solid #F59E0B;">'
+                f'<div class="metric-card-label">Peak Memory (Frontier Size)</div>'
+                f'<div class="metric-card-val"><span style="color:#2563EB;">{bfs_max_mem}</span> vs <span style="color:#7C3AED;">{dfs_max_mem}</span></div>'
+                f'<div style="font-size:0.80rem; color:#475569;">Max Queue Size (BFS) vs Max Stack Depth (DFS)</div>'
+                f'</div>', unsafe_allow_html=True
+            )
+
+        st.write("")
+
+        # -------------------------------------------------------------
+        # 2. SIDE-BY-SIDE DUAL NETWORK TRAVERSAL VISUALIZATIONS
+        # -------------------------------------------------------------
+        st.markdown("#### 1. Live Visual Traversal & Route Discovery")
+        st.caption("Visualizing the discovered forwarding path (thick solid link) and the explored topology frontier (dashed lines).")
+
+        col_viz_bfs, col_viz_dfs = st.columns(2)
+
+        with col_viz_bfs:
+            st.markdown(
+                "<div style='display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;'>"
+                "<span style='font-weight:700; color:#2563EB; font-size:1.05rem;'>Breadth-First Search (BFS)</span>"
+                "<span style='background:#DBEAFE; color:#1E40AF; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:700;'>FIFO QUEUE</span>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+            fig_bfs = build_algo_result_figure(
+                graph, bfs_info, cmp_src, cmp_dst,
+                title_label="BFS Shortest Route",
+                primary_color="#2563EB", secondary_color="#38BDF8", height=380
+            )
+            st.plotly_chart(fig_bfs, use_container_width=True)
+
+            st.markdown("**Discovered Route:**")
+            st.markdown(render_path_pills(bfs_info.get("path", [])), unsafe_allow_html=True)
+
+            st.markdown(
+                f"<div style='font-size:0.86rem; color:#334155; line-height:1.6; margin-top:6px;'>"
+                f"• <b>Hop Count:</b> <code>{bfs_info.get('hops', 0)} hops</code> (Guaranteed Shortest)<br>"
+                f"• <b>Total Route Link Weight:</b> <code>{bfs_info.get('path_cost', 0.0)}</code><br>"
+                f"• <b>Routers Visited:</b> <code>{len(bfs_info.get('visited', []))} of {len(graph.routers)}</code><br>"
+                f"• <b>Queue Operations:</b> <code>{bfs_info.get('total_enqueues', 0)} Enqueues / {bfs_info.get('total_dequeues', 0)} Dequeues</code><br>"
+                f"• <b>Execution Time:</b> <code>{bfs_info.get('execution_time_ms', 0.0):.3f} ms</code>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+        with col_viz_dfs:
+            st.markdown(
+                "<div style='display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;'>"
+                "<span style='font-weight:700; color:#7C3AED; font-size:1.05rem;'>Depth-First Search (DFS)</span>"
+                "<span style='background:#EDE9FE; color:#5B21B6; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:700;'>LIFO STACK</span>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+            fig_dfs = build_algo_result_figure(
+                graph, dfs_info, cmp_src, cmp_dst,
+                title_label="DFS Discovered Route",
+                primary_color="#7C3AED", secondary_color="#C084FC", height=380
+            )
+            st.plotly_chart(fig_dfs, use_container_width=True)
+
+            st.markdown("**Discovered Route:**")
+            st.markdown(render_path_pills(dfs_info.get("path", [])), unsafe_allow_html=True)
+
+            st.markdown(
+                f"<div style='font-size:0.86rem; color:#334155; line-height:1.6; margin-top:6px;'>"
+                f"• <b>Hop Count:</b> <code>{dfs_info.get('hops', 0)} hops</code> (Not Guaranteed Minimal)<br>"
+                f"• <b>Total Route Link Weight:</b> <code>{dfs_info.get('path_cost', 0.0)}</code><br>"
+                f"• <b>Routers Visited:</b> <code>{len(dfs_info.get('visited', []))} of {len(graph.routers)}</code><br>"
+                f"• <b>Stack Operations:</b> <code>{dfs_info.get('total_pushes', 0)} Pushes / {dfs_info.get('total_pops', 0)} Pops ({dfs_info.get('backtrack_count', 0)} Backtracks)</code><br>"
+                f"• <b>Execution Time:</b> <code>{dfs_info.get('execution_time_ms', 0.0):.3f} ms</code>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # 3. WHICH IS BEST? AUTHORITATIVE ENGINEERING VERDICT
+        # -------------------------------------------------------------
+        st.markdown("#### 2. Authoritative Engineering Verdict: Which Algorithm is Best?")
+        st.caption("Theoretical rigor and practical systems analysis across telecommunications and computer science.")
+
+        st.markdown(
+            f"""
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-left:5px solid {cmp_res['verdict_color']}; border-radius:8px; padding:16px 20px; margin-bottom:16px;">
+                <div style="font-weight:700; font-size:1.15rem; color:{cmp_res['verdict_color']}; margin-bottom:6px;">
+                    {cmp_res['verdict_title']}
+                </div>
+                <div style="font-size:0.95rem; color:#1E293B; line-height:1.55;">
+                    {cmp_res['verdict_summary']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        verdict_col1, verdict_col2 = st.columns(2)
+
+        with verdict_col1:
+            st.markdown(
+                """
+                <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; padding:16px;">
+                    <div style="font-weight:700; color:#166534; font-size:0.98rem; margin-bottom:8px;">
+                        Why BFS is STRICTLY BEST for Network Packet Routing:
+                    </div>
+                    <ul style="font-size:0.88rem; color:#14532D; margin:0; padding-left:18px; line-height:1.6;">
+                        <li><b>Guaranteed Minimum Latency:</b> Every router hop incurs serialization, processing, and queueing delays. BFS mathematically guarantees the path with the fewest hops ($H_{min}$).</li>
+                        <li><b>Bandwidth Efficiency:</b> Avoids circuitous, wandering paths that consume transmission capacity on redundant links.</li>
+                        <li><b>Deterministic Frontier:</b> Explores radially outward in uniform distance shells (d = 1, 2, ...), ensuring consistent routing behavior regardless of neighbor ordering.</li>
+                        <li><b>Jitter & Packet Loss Minimization:</b> Fewer forwarding switches statistically reduce buffer drops and latency variation.</li>
+                    </ul>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with verdict_col2:
+            st.markdown(
+                """
+                <div style="background:#FAF5FF; border:1px solid #E9D5FF; border-radius:8px; padding:16px;">
+                    <div style="font-weight:700; color:#6B21A8; font-size:0.98rem; margin-bottom:8px;">
+                        When DFS is BEST / PREFERRED in Computer Science & Networking:
+                    </div>
+                    <ul style="font-size:0.88rem; color:#581C87; margin:0; padding-left:18px; line-height:1.6;">
+                        <li><b>Loop & Cycle Detection (Control Plane):</b> DFS recursion stack identifies back-edges in $O(V + E)$ time (Spanning Tree Protocol STP).</li>
+                        <li><b>Network Vulnerability & Bridge Detection:</b> Tarjan's algorithm uses DFS to discover Articulation Points (routers whose failure isolates subnets).</li>
+                        <li><b>Topological Task Sequencing:</b> Used for firewall rule chaining, virtual network function (VNF) dependency ordering, and DAG scheduling.</li>
+                        <li><b>Memory-Constrained IoT Nodes:</b> In sensors with tiny RAM (2KB-4KB), DFS memory $O(h)$ avoids BFS queue explosion $O(b^d)$ on wide graphs.</li>
+                    </ul>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.write("")
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # 4. COMPREHENSIVE MULTI-DIMENSIONAL COMPARISON TABLE
+        # -------------------------------------------------------------
+        st.markdown("#### 3. Quantitative & Architectural Comparison Table")
+        st.caption("Comparing core properties, operational complexities, and systems behaviors.")
+
+        comparison_matrix_data = [
+            {
+                "Dimension": "1. Underlying Data Structure",
+                "Breadth-First Search (BFS)": "FIFO Queue (collections.deque)",
+                "Depth-First Search (DFS)": "LIFO Stack (list / Call Stack)",
+                "Advantage / Notes": "BFS maintains level order; DFS explores depth."
+            },
+            {
+                "Dimension": "2. Shortest Path Guarantee",
+                "Breadth-First Search (BFS)": "Guaranteed Optimal (Minimum Hops in unweighted graphs)",
+                "Depth-First Search (DFS)": "No Guarantee (Discovers any reachable path)",
+                "Advantage / Notes": "BFS is mandatory for minimum-latency packet routing."
+            },
+            {
+                "Dimension": "3. Search Frontier Mechanics",
+                "Breadth-First Search (BFS)": "Concentric radial waves (Level k before k + 1)",
+                "Depth-First Search (DFS)": "Deep single-branch probe until dead-end, then backtrack",
+                "Advantage / Notes": "BFS frontier expands symmetrically; DFS is narrow."
+            },
+            {
+                "Dimension": "4. Time Complexity",
+                "Breadth-First Search (BFS)": f"O(V + E) — V={len(graph.routers)}, E={len(graph.get_edges())}",
+                "Depth-First Search (DFS)": f"O(V + E) — V={len(graph.routers)}, E={len(graph.get_edges())}",
+                "Advantage / Notes": "Identical asymptotic time bound; constant factors differ."
+            },
+            {
+                "Dimension": "5. Memory / Space Complexity",
+                "Breadth-First Search (BFS)": "O(V) — Proportional to max breadth / frontier width (b^d)",
+                "Depth-First Search (DFS)": "O(V) — Proportional to maximum traversal depth (h)",
+                "Advantage / Notes": "DFS uses less memory in wide, bushy shallow trees."
+            },
+            {
+                "Dimension": "6. Backtracking Required?",
+                "Breadth-First Search (BFS)": "No backtracking required during forward traversal",
+                "Depth-First Search (DFS)": f"Yes ({dfs_info.get('backtrack_count', 0)} backtracks in active run)",
+                "Advantage / Notes": "Backtracking wastes network link buffer lookahead."
+            },
+            {
+                "Dimension": "7. Data Plane Forwarding Suitability",
+                "Breadth-First Search (BFS)": "High / Primary (Basis for Shortest Path Bridging)",
+                "Depth-First Search (DFS)": "Unsuitable (Meandering routes violate latency SLA)",
+                "Advantage / Notes": "Forwarding tables are derived from BFS / Dijkstra."
+            },
+            {
+                "Dimension": "8. Control Plane Topology Auditing",
+                "Breadth-First Search (BFS)": "Sub-optimal for cycle analysis",
+                "Depth-First Search (DFS)": "Gold Standard (Loop detection, Bridges, Biconnectivity)",
+                "Advantage / Notes": "DFS back-edges immediately identify topological cycles."
+            },
+            {
+                "Dimension": "9. Real-World Protocol Analogs",
+                "Breadth-First Search (BFS)": "OSPF / IS-IS (Dijkstra weighted BFS), SDN OpenFlow",
+                "Depth-First Search (DFS)": "Spanning Tree Protocol (STP), BGP AS-Path Loop Supression",
+                "Advantage / Notes": "Industry standard networking building blocks."
+            }
+        ]
+
+        st.dataframe(pd.DataFrame(comparison_matrix_data), hide_index=True, use_container_width=True)
+
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # 5. INTERACTIVE SCENARIO SELECTOR (DECISION HELPER)
+        # -------------------------------------------------------------
+        st.markdown("#### 4. Interactive Scenario Selector: Engineering Decision Guide")
+        st.caption("Select a real-world networking or engineering challenge to inspect the recommended algorithm.")
+
+        scenario_titles = [s["scenario"] for s in cmp_res["scenario_guide"]]
+        selected_scenario_idx = st.selectbox(
+            "Select Engineering Problem Domain:",
+            options=range(len(scenario_titles)),
+            format_func=lambda i: scenario_titles[i],
+            key="cmp_scenario_select"
+        )
+
+        sc = cmp_res["scenario_guide"][selected_scenario_idx]
+        sc_badge_color = "#2563EB" if "BFS" in sc["best_choice"] or "Dijkstra" in sc["best_choice"] else "#7C3AED"
+
+        st.markdown(
+            f"""
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:8px; padding:16px; margin-top:10px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                    <div style="font-weight:700; font-size:1.02rem; color:#0F172A;">{sc['scenario']}</div>
+                    <span style="background:{sc_badge_color}; color:#FFFFFF; padding:4px 12px; border-radius:6px; font-weight:700; font-size:0.84rem;">
+                        RECOMMENDED: {sc['best_choice']}
+                    </span>
+                </div>
+                <div style="font-size:0.92rem; color:#334155; margin-bottom:8px;">
+                    <b>Algorithmic Rationale:</b> {sc['rationale']}
+                </div>
+                <div style="font-size:0.86rem; color:#475569; margin-bottom:6px;">
+                    <b>Theoretical Complexity:</b> <code>{sc['complexity']}</code>
+                </div>
+                <div style="font-size:0.86rem; color:#0284C7;">
+                    <b>Industry Real-World Implementation:</b> {sc['industry_example']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown("---")
+
+        # -------------------------------------------------------------
+        # 6. PROFESSIONAL ENGINEERING SUGGESTIONS & BEST PRACTICES
+        # -------------------------------------------------------------
+        st.markdown("#### 5. Professional Engineering Suggestions & Architecture Guidelines")
+        st.caption("Practical engineering recommendations for network systems architects and algorithm engineers.")
+
+        sug_cols = st.columns(2)
+        for idx, sug in enumerate(cmp_res["suggestions"]):
+            target_col = sug_cols[idx % 2]
+            with target_col:
+                st.markdown(
+                    f"""
+                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-top:3px solid #2563EB; border-radius:8px; padding:14px; margin-bottom:14px; height:100%;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#2563EB; text-transform:uppercase;">{sug['category']}</span>
+                            <span style="font-size:0.72rem; background:#F1F5F9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:600;">{sug['impact']}</span>
+                        </div>
+                        <div style="font-weight:700; font-size:0.95rem; color:#0F172A; margin-bottom:6px;">{sug['title']}</div>
+                        <div style="font-size:0.86rem; color:#334155; line-height:1.5;">{sug['recommendation']}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        # -------------------------------------------------------------
+        # 7. STEP-BY-STEP DATA STRUCTURE INSPECTOR (FIFO QUEUE VS LIFO STACK)
+        # -------------------------------------------------------------
+        with st.expander("Inspect Step-by-Step Traversal Logs (FIFO Queue vs. LIFO Stack Execution)", expanded=False):
+            st.caption("Examine the exact chronological operations performed by the underlying queue and stack structures.")
+            tab_step_bfs, tab_step_dfs = st.tabs(["BFS Queue Execution Steps", "DFS Stack Execution Steps"])
+
+            with tab_step_bfs:
+                bfs_step_rows = []
+                for s in bfs_info.get("steps", []):
+                    bfs_step_rows.append({
+                        "Step": s.get("step"),
+                        "Operation": s.get("operation"),
+                        "Current Router": s.get("current_node"),
+                        "Queue Front (Next Out)": s.get("front"),
+                        "Queue Rear (Latest In)": s.get("rear"),
+                        "Queue State": str(s.get("structure")),
+                        "Enqueues": s.get("enqueues"),
+                        "Dequeues": s.get("dequeues"),
+                        "Description": s.get("description")
+                    })
+                st.dataframe(pd.DataFrame(bfs_step_rows), hide_index=True, use_container_width=True)
+
+            with tab_step_dfs:
+                dfs_step_rows = []
+                for s in dfs_info.get("steps", []):
+                    dfs_step_rows.append({
+                        "Step": s.get("step"),
+                        "Operation": s.get("operation"),
+                        "Current Router": s.get("current_node"),
+                        "Stack Top": s.get("stack_top"),
+                        "Stack Depth": len(s.get("structure", [])),
+                        "Stack State": str(s.get("structure")),
+                        "Pushes": s.get("pushes"),
+                        "Pops": s.get("pops"),
+                        "Description": s.get("description")
+                    })
+                st.dataframe(pd.DataFrame(dfs_step_rows), hide_index=True, use_container_width=True)
+
+
+# =============================================================
 # TAB 2: CO3 SEARCHING & SORTING (REAL INTERACTIVE EXECUTION)
 # =============================================================
 with tab_co3:
+
     st.markdown("### CO3 — Searching and Sorting Algorithm Evaluation")
 
     # Adaptively derive datasets from the currently selected topology

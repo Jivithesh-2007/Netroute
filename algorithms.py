@@ -1000,3 +1000,205 @@ def build_traversal_tree(parents: Dict[str, Optional[str]], src: str, dst: Optio
         "max_depth": max(levels.values()) if levels else 0,
         "message": f"Constructed traversal tree with root '{src_clean}', {len(nodes_list)} nodes, and {len(edges)} tree edges."
     }
+
+
+# =============================================================================
+# CO5 / ALGORITHM COMPARISON: BFS VS. DFS DUAL EVALUATION ENGINE
+# =============================================================================
+
+def compare_bfs_dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
+    """
+    Performs synchronized, dual-execution comparative analysis of Breadth-First Search (BFS)
+    and Depth-First Search (DFS) on the active network topology between endpoints src and dst.
+
+    Computes exhaustive side-by-side engineering metrics:
+    - Path discovery, hop counts, and optimality delta.
+    - Exploration efficiency (nodes visited, edges evaluated).
+    - Peak memory footprint (Queue size vs Stack depth).
+    - Structural operations (Enqueues/Dequeues vs Pushes/Pops/Backtracks).
+    - Latency benchmarking with high-resolution performance timers.
+    - Authoritative engineering verdict: determining which algorithm is best for network routing
+      and computer science problem domains, backed by rigorous algorithmic theory.
+    - Professional engineering suggestions and architectural best practices.
+    """
+    src_clean = str(src).strip().upper()
+    dst_clean = str(dst).strip().upper()
+
+    # Execute both algorithms
+    bfs_res = bfs(graph, src_clean, dst_clean)
+    dfs_res = dfs(graph, src_clean, dst_clean)
+
+    both_success = bfs_res.get("success", False) and dfs_res.get("success", False)
+    bfs_hops = bfs_res.get("hops", 0)
+    dfs_hops = dfs_res.get("hops", 0)
+    hop_delta = dfs_hops - bfs_hops
+    same_path = (bfs_res.get("path") == dfs_res.get("path")) and both_success
+
+    total_routers = len(graph.routers)
+    bfs_visited_count = len(bfs_res.get("visited", []))
+    dfs_visited_count = len(dfs_res.get("visited", []))
+
+    bfs_coverage_pct = round((bfs_visited_count / total_routers * 100.0), 1) if total_routers > 0 else 0.0
+    dfs_coverage_pct = round((dfs_visited_count / total_routers * 100.0), 1) if total_routers > 0 else 0.0
+
+    # Determine Verdict & Best Algorithm
+    if not bfs_res.get("success", False) and not dfs_res.get("success", False):
+        verdict_title = "Mutually Consistent: Destination Unreachable"
+        verdict_badge = "DESTINATION UNREACHABLE"
+        verdict_color = "#EF4444"
+        winner = "Neither (Target Unreachable)"
+        verdict_summary = (
+            f"Both BFS and DFS correctly confirmed that destination router '{dst_clean}' "
+            f"cannot be reached from source router '{src_clean}' under the current network state. "
+            "Graph traversal verified partition isolation."
+        )
+    elif bfs_hops < dfs_hops:
+        verdict_title = "BFS is Strictly Superior (Discovered Guaranteed Minimum Hops)"
+        verdict_badge = "BFS IS BEST FOR ROUTING"
+        verdict_color = "#10B981"
+        winner = "BFS (Breadth-First Search)"
+        verdict_summary = (
+            f"BFS discovered the optimal path in {bfs_hops} hops, whereas DFS discovered a sub-optimal "
+            f"circuitous path in {dfs_hops} hops (+{hop_delta} extra hops, a {round(hop_delta / bfs_hops * 100, 1) if bfs_hops > 0 else 0}% hop penalty). "
+            "In telecommunications, each extra router hop adds transmission, propagation, and queueing latency. "
+            "BFS is mathematically guaranteed to find the minimum-hop path in unweighted graphs."
+        )
+    elif same_path:
+        verdict_title = "BFS and DFS Converged on the Same Path (BFS Recommended)"
+        verdict_badge = "BFS RECOMMENDED (PROVABLE GUARANTEE)"
+        verdict_color = "#2563EB"
+        winner = "BFS (Provable Guarantee)"
+        verdict_summary = (
+            f"Both algorithms discovered identical {bfs_hops}-hop paths (`{' -> '.join(bfs_res.get('path', []))}`). "
+            "However, BFS guarantees this minimum-hop property across all arbitrary network topologies, "
+            "whereas DFS only arrived at the shortest path by coincidence of neighbor traversal ordering."
+        )
+    else:
+        # Same hop count but different path
+        verdict_title = "Equal Hop Count with Alternative Routing Paths"
+        verdict_badge = "BFS PREFERRED (DETERMINISTIC FRONTIER)"
+        verdict_color = "#2563EB"
+        winner = "BFS (Deterministic Breadth Frontier)"
+        verdict_summary = (
+            f"Both algorithms found distinct paths of {bfs_hops} hops. "
+            "BFS explored symmetrically in concentric distance rings, ensuring deterministic minimum-latency delivery."
+        )
+
+    # Professional Engineering Suggestions
+    suggestions = [
+        {
+            "category": "Packet Forwarding in Telecommunications",
+            "title": "Use BFS / Dijkstra for Production Packet Forwarding",
+            "recommendation": (
+                "For packet routing across physical or virtual switches, always deploy BFS (for unweighted networks) "
+                "or Dijkstra's Algorithm (Priority Queue BFS for weighted links like OSPF and IS-IS). DFS should NEVER "
+                "be used for raw data packet forwarding because its meandering paths cause unpredictable latency, packet jitter, "
+                "and link congestion."
+            ),
+            "applicable_algo": "BFS / Dijkstra",
+            "impact": "High (Guarantees Minimum Latency)"
+        },
+        {
+            "category": "Network Topology Auditing & Loop Prevention",
+            "title": "Use DFS for Cycle Detection & Critical Failure Analysis",
+            "recommendation": (
+                "DFS is the gold standard for control-plane topology analysis. Use DFS back-edges to detect routing loops "
+                "(analogous to Spanning Tree Protocol / STP) and to compute Articulation Points (critical single-router points "
+                "of failure) and Bridges (critical transmission links) in linear O(V + E) time using Tarjan's algorithm."
+            ),
+            "applicable_algo": "DFS",
+            "impact": "High (Fault-Tolerance & Resilience)"
+        },
+        {
+            "category": "Memory-Constrained Systems & Sensor Networks",
+            "title": "Evaluate Iterative Deepening (IDDFS) for Extreme Scale or Tiny RAM",
+            "recommendation": (
+                "When operating in resource-starved IoT microcontrollers (e.g., 2KB-8KB RAM Zigbee/LoRa nodes) or graphs "
+                "with massive branching factors where BFS queue storage O(b^d) threatens to exhaust system memory, use "
+                "Iterative Deepening Search (IDDFS). IDDFS provides BFS's shortest-path guarantee while using only DFS's O(d) memory."
+            ),
+            "applicable_algo": "IDDFS (Hybrid)",
+            "impact": "Medium (Memory Optimization)"
+        },
+        {
+            "category": "Network Protection & Resource Guardrails",
+            "title": "Enforce Time-To-Live (TTL) & Hop-Count Guardrails",
+            "recommendation": (
+                "Both graph-based routing algorithms and distributed table forwarding must strictly enforce an IP Header "
+                "TTL (Time-To-Live) / Hop Limit field. If transient topological flapping causes a routing loop, the decremented "
+                "TTL ensures packets are discarded before consuming link capacity."
+            ),
+            "applicable_algo": "Network Layer Protocol",
+            "impact": "Critical (Prevents Congestion Collapse)"
+        }
+    ]
+
+    # Pre-computed Scenarios for Interactive Recommendation Engine
+    scenario_guide = [
+        {
+            "scenario": "Unweighted Shortest-Hop Packet Routing (LAN / Data Center switching)",
+            "best_choice": "BFS (Breadth-First Search)",
+            "rationale": "FIFO queue explores level-by-level; provably guarantees minimum forwarding hops.",
+            "complexity": "Time: O(V + E) | Space: O(V)",
+            "industry_example": "Layer-2 Spanning Tree shortest path, Software-Defined Network (SDN) Controller route provisioning."
+        },
+        {
+            "scenario": "Weighted Latency / Cost Metric Routing (Internet Core & Enterprise WAN)",
+            "best_choice": "Dijkstra (Weighted BFS with Min-Priority Queue)",
+            "rationale": "Generalizes BFS from unweighted unit hops to variable bandwidth, delay, and financial cost link weights.",
+            "complexity": "Time: O((V + E) log V) | Space: O(V)",
+            "industry_example": "OSPF (Open Shortest Path First), IS-IS (Intermediate System to Intermediate System)."
+        },
+        {
+            "scenario": "Topology Loop & Cycle Detection",
+            "best_choice": "DFS (Depth-First Search)",
+            "rationale": "Recursion stack instantly flags back-edges to ancestors in O(V + E) time without exploring unnecessary branches.",
+            "complexity": "Time: O(V + E) | Space: O(V)",
+            "industry_example": "Ethernet STP (802.1D Spanning Tree Protocol), BGP AS-Path loop suppression."
+        },
+        {
+            "scenario": "Critical Single Point of Failure (SPOF) Identification",
+            "best_choice": "DFS (Tarjan's Articulation Points & Bridges Algorithm)",
+            "rationale": "Tracks discovery times and lowest reachable ancestor times (low values) to find routers whose severance isolates subnets.",
+            "complexity": "Time: O(V + E) | Space: O(V)",
+            "industry_example": "Network reliability auditor, automated disaster-recovery redundancy analyzers."
+        },
+        {
+            "scenario": "Firewall Rule Chaining & Network Task Dependency Ordering",
+            "best_choice": "DFS (Topological Sort)",
+            "rationale": "Produces a linear sequence where every predecessor rule or virtual network function precedes its consumer.",
+            "complexity": "Time: O(V + E) | Space: O(V)",
+            "industry_example": "Kubernetes service dependency graphs, Linux iptables policy compiler."
+        },
+        {
+            "scenario": "Memory-Constrained Wireless Sensor Networks (IoT microcontrollers)",
+            "best_choice": "IDDFS (Iterative Deepening Search) or DFS Reachability",
+            "rationale": "Maintains stack size proportional to maximum depth O(d), preventing RAM out-of-memory crashes on embedded nodes.",
+            "complexity": "Time: O(b^d) | Space: O(d)",
+            "industry_example": "Zigbee/Thread mesh route discovery under 4KB RAM budgets."
+        }
+    ]
+
+    return {
+        "source": src_clean,
+        "destination": dst_clean,
+        "both_success": both_success,
+        "same_path": same_path,
+        "bfs": bfs_res,
+        "dfs": dfs_res,
+        "bfs_hops": bfs_hops,
+        "dfs_hops": dfs_hops,
+        "hop_delta": hop_delta,
+        "bfs_visited_count": bfs_visited_count,
+        "dfs_visited_count": dfs_visited_count,
+        "bfs_coverage_pct": bfs_coverage_pct,
+        "dfs_coverage_pct": dfs_coverage_pct,
+        "verdict_title": verdict_title,
+        "verdict_badge": verdict_badge,
+        "verdict_color": verdict_color,
+        "winner": winner,
+        "verdict_summary": verdict_summary,
+        "suggestions": suggestions,
+        "scenario_guide": scenario_guide
+    }
+

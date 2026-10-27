@@ -171,3 +171,41 @@ When presenting the project to faculty, follow this structured demonstration:
    - Observe the step-by-step forwarding log as the packet moves from router to router based on local table lookups.
    - Go to the Failure Lab or cut a link along the route: demonstrate that table forwarding reports a forwarding failure (`LINK_SEVERED` or `NO_ROUTE_TO_HOST`) without silently falling back to a global graph traversal.
 4. Review the **Architectural Dimension Comparison Table** contrasting centralized on-demand graph search (BFS) with distributed hop-by-hop forwarding tables.
+
+---
+
+### Demonstrating BFS vs. DFS Algorithm Comparison
+1. Click on the **"BFS vs. DFS Comparison"** tab.
+2. Observe the **Executive KPI Scorecard**:
+   - Compares **Hop Counts** ($H_{BFS}$ vs $H_{DFS}$), highlighting the provable optimality of BFS.
+   - Compares **Exploration Coverage** (number and % of visited routers).
+   - Compares **Peak Auxiliary Structure Footprint** (FIFO Queue size vs LIFO Stack depth).
+3. Review the **Side-by-Side Dual Network Figures**:
+   - Left canvas shows the concentric radial breadth exploration of BFS and its optimal shortest route in solid blue.
+   - Right canvas shows the deep-branch probe and backtracking behavior of DFS in purple.
+4. Review the **"Which Algorithm is Best?" Authoritative Verdict**:
+   - Explains why BFS is strictly best for packet forwarding (minimizes latency, conserves bandwidth, predictable concentric frontier).
+   - Explains the specific scenarios where DFS is preferred (STP loop/cycle detection, Tarjan's single point of failure analysis, topological sorting, memory-constrained IoT nodes).
+5. Explore the **Interactive Scenario Selector** to see real-world recommendations across 6 engineering challenges.
+6. Review the **Professional Engineering Suggestions & Architectural Guidelines** covering production protocol deployment, cycle detection, IDDFS, and TTL guardrails.
+
+---
+
+## 6. Manual Execution Guide
+
+To launch and run NetRoute manually from the terminal:
+
+```bash
+# 1. Navigate to the project root directory
+cd "/Users/jeslinjp/Library/CloudStorage/GoogleDrive-jeslin3379@gmail.com/My Drive/my_project/Netroute"
+
+# 2. Ensure dependencies are installed
+python3 -m pip install -r requirements.txt
+
+# 3. Launch the Streamlit application
+python3 -m streamlit run main.py
+
+# 4. Access the web dashboard in your browser at:
+# http://localhost:8501
+```
+
