@@ -249,7 +249,12 @@ def render_path_pills(path: List[str]) -> str:
     for i, node in enumerate(path):
         items.append(f'<span class="path-pill">{node}</span>')
         if i < len(path) - 1:
-            items.append('<span class="path-arrow">➔</span>')
+            items.append(
+            '<span class="path-arrow" style="display:inline-flex; align-items:center;">'
+            '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:14px;height:14px;color:#94A3B8;">'
+            '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />'
+            '</svg></span>'
+        )
     return f'<div class="path-pill-container">{" ".join(items)}</div>'
 
 

@@ -478,12 +478,12 @@ if selected_algo != st.session_state.get("selected_algo"):
 
 btn_col1, btn_col2 = st.sidebar.columns(2)
 with btn_col1:
-    if st.button("Run Routing", type="primary", use_container_width=True):
+    if st.button("Run Routing", icon=":material/play_arrow:", type="primary", use_container_width=True):
         sim.execute_routing(graph, selected_algo, selected_src, selected_dst)
         st.rerun()
 
 with btn_col2:
-    if st.button("Reset", use_container_width=True):
+    if st.button("Reset", icon=":material/refresh:", use_container_width=True):
         sim.reset_simulation()
         st.rerun()
 
@@ -495,12 +495,12 @@ info_c1.metric("Routers", len(graph.routers))
 info_c2.metric("Connections", len(graph.get_edges()))
 st.sidebar.caption(f"Topology: **{preset_options.get(st.session_state.get('selected_preset', 'reference'))}**")
 
-with st.sidebar.expander("🛠️ Quick Router Management", expanded=False):
+with st.sidebar.expander("Quick Router Management", icon=":material/tune:", expanded=False):
     sb_c1, sb_c2 = st.columns([1.5, 1])
     sb_new_id = sb_c1.text_input("Router ID", placeholder="e.g. N8", max_chars=8, key="sb_add_rid").strip().upper()
     with sb_c2:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-        sb_add_btn = st.button("➕ Add", use_container_width=True, key="sb_btn_add")
+        sb_add_btn = st.button("Add", icon=":material/add:", use_container_width=True, key="sb_btn_add")
 
     if sb_add_btn:
         ok, msg = validate_router_id(sb_new_id)
@@ -520,7 +520,7 @@ with st.sidebar.expander("🛠️ Quick Router Management", expanded=False):
         sb_del_r = sb_del_c1.selectbox("Delete Router", options=["-- Select --"] + router_keys, key="sb_del_r_select")
         with sb_del_c2:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            sb_del_btn = st.button("🗑️ Del", use_container_width=True, key="sb_btn_del")
+            sb_del_btn = st.button("Del", icon=":material/delete:", use_container_width=True, key="sb_btn_del")
 
         if sb_del_btn and sb_del_r != "-- Select --":
             rem = [r for r in router_keys if r != sb_del_r]
@@ -582,27 +582,27 @@ with tab_routing:
         # Traversal Playback Bar
         ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5, ctrl_c6 = st.columns([1, 1, 1, 1, 1.6, 1.2])
         with ctrl_c1:
-            if st.button("⏮ First", use_container_width=True):
+            if st.button("First", icon=":material/first_page:", use_container_width=True):
                 sim.first_step()
                 st.rerun()
         with ctrl_c2:
-            if st.button("◀ Prev", use_container_width=True):
+            if st.button("Prev", icon=":material/navigate_before:", use_container_width=True):
                 sim.step_backward()
                 st.rerun()
         with ctrl_c3:
-            if st.button("Next ▶", use_container_width=True):
+            if st.button("Next", icon=":material/navigate_next:", use_container_width=True):
                 sim.step_forward()
                 st.rerun()
         with ctrl_c4:
-            if st.button("⏭ Last", use_container_width=True):
+            if st.button("Last", icon=":material/last_page:", use_container_width=True):
                 sim.last_step()
                 st.rerun()
         with ctrl_c5:
-            if st.button("🚀 Transmit Packet", type="primary", use_container_width=True):
+            if st.button("Transmit Packet", icon=":material/send:", type="primary", use_container_width=True):
                 sim.packet_step_forward()
                 st.rerun()
         with ctrl_c6:
-            if st.button("🔄 Reset Pkt", use_container_width=True):
+            if st.button("Reset Pkt", icon=":material/restart_alt:", use_container_width=True):
                 sim.reset_packet()
                 st.rerun()
 
@@ -688,7 +688,7 @@ with tab_routing:
 
     # Dynamic Network Topology Management (Add/Delete Nodes & Links, Hardware Faults)
     st.write("")
-    with st.expander("🛠️ Dynamic Network Topology Editor (Add / Delete Routers & Links)", expanded=False):
+    with st.expander("Dynamic Network Topology Editor (Add / Delete Routers & Links)", icon=":material/account_tree:", expanded=False):
         st.caption("Dynamically modify network topology at runtime. All changes immediately synchronize with the graph visualizer, routing engine, and CO3/CO4/CO5 modules.")
 
         te_col1, te_col2 = st.columns(2)
@@ -710,7 +710,7 @@ with tab_routing:
             )
             with ar_c4:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                add_btn = st.button("➕ Add Router", type="primary", use_container_width=True, key="te_btn_add_router")
+                add_btn = st.button("Add Router", icon=":material/add_circle:", type="primary", use_container_width=True, key="te_btn_add_router")
 
             if add_btn:
                 ok, msg = validate_router_id(new_rid)
@@ -748,7 +748,7 @@ with tab_routing:
             del_target = del_c1.selectbox("Select Router to Delete", options=["-- Select --"] + router_keys, key="te_del_target")
             with del_c2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                del_btn = st.button("🗑️ Delete", use_container_width=True, key="te_btn_del_router")
+                del_btn = st.button("Delete", icon=":material/delete_forever:", use_container_width=True, key="te_btn_del_router")
 
             if del_btn:
                 if del_target == "-- Select --":
@@ -780,7 +780,7 @@ with tab_routing:
             flt_target = flt_c1.selectbox("Select Router", options=router_keys, key="te_flt_target")
             with flt_c2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                flt_btn = st.button("⚡ Toggle Power", use_container_width=True, key="te_btn_flt_toggle")
+                flt_btn = st.button("Toggle Power", icon=":material/bolt:", use_container_width=True, key="te_btn_flt_toggle")
 
             if flt_target and flt_target in graph.routers:
                 r_state = "Online (Operational)" if graph.routers[flt_target].is_online else "Offline (Fault Injected)"
@@ -803,12 +803,12 @@ with tab_routing:
             v_node = lk_c2.selectbox("Endpoint B", options=v_options if v_options else ["None"], key="te_lk_v")
             weight_val = lk_c3.number_input("Cost", min_value=1.0, max_value=50.0, value=1.0, step=1.0, key="te_lk_weight")
 
-            if st.button("🔗 Add Transmission Link", use_container_width=True, key="te_btn_add_link"):
+            if st.button("Add Transmission Link", icon=":material/link:", use_container_width=True, key="te_btn_add_link"):
                 if not v_options or v_node == "None":
                     st.warning("Please choose two different routers.")
                 elif graph.add_connection(u_node, v_node, weight=float(weight_val)):
                     sim.invalidate_simulation()
-                    st.success(f"Created link: {u_node} ➔ {v_node} (Cost: {weight_val})")
+                    st.success(f"Created link: {u_node} → {v_node} (Cost: {weight_val})")
                     st.rerun()
                 else:
                     st.warning(f"Connection between '{u_node}' and '{v_node}' already exists or is invalid.")
@@ -826,7 +826,7 @@ with tab_routing:
             )
             with rm_c2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                rm_link_btn = st.button("✂️ Remove Link", use_container_width=True, key="te_btn_rm_link")
+                rm_link_btn = st.button("Remove Link", icon=":material/link_off:", use_container_width=True, key="te_btn_rm_link")
 
             if rm_link_btn:
                 if edge_to_rm in ("-- Select --", "No Links"):
@@ -844,12 +844,12 @@ with tab_routing:
             st.markdown("**Layout & Topology Reset**")
             lay_c1, lay_c2 = st.columns(2)
             with lay_c1:
-                if st.button("🔄 Auto-Arrange (Circle)", use_container_width=True, key="te_btn_auto_layout"):
+                if st.button("Auto-Arrange (Circle)", icon=":material/autorenew:", use_container_width=True, key="te_btn_auto_layout"):
                     graph.auto_layout()
                     st.success("Re-arranged routers into a balanced circular layout.")
                     st.rerun()
             with lay_c2:
-                if st.button("⏮ Restore Preset", use_container_width=True, key="te_btn_restore_preset"):
+                if st.button("Restore Preset", icon=":material/restore:", use_container_width=True, key="te_btn_restore_preset"):
                     curr_p = st.session_state.get("selected_preset", "reference")
                     st.session_state["graph"] = Graph.from_preset(curr_p)
                     for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
@@ -897,7 +897,7 @@ with tab_co3:
         with s_c2:
             st.write("")
             st.write("")
-            if st.button("Execute Search", type="primary", use_container_width=True):
+            if st.button("Execute Search", icon=":material/search:", type="primary", use_container_width=True):
                 # Run actual algorithms on current topology data
                 res_lin = linear_search(unsorted_nodes, target_router)
                 res_bin = binary_search(sorted_nodes, target_router, verify_sorted=True)
@@ -934,19 +934,19 @@ with tab_co3:
 
             c_step1, c_step2, c_step3, c_step4 = st.columns([1, 1, 1, 1])
             with c_step1:
-                if st.button("⏮ Start", key="s_btn_start"):
+                if st.button("Start", icon=":material/first_page:", key="s_btn_start"):
                     st.session_state["search_step_idx"] = 0
                     st.rerun()
             with c_step2:
-                if st.button("◀ Prev Step", key="s_btn_prev") and s_step > 0:
+                if st.button("Prev Step", icon=":material/navigate_before:", key="s_btn_prev") and s_step > 0:
                     st.session_state["search_step_idx"] = s_step - 1
                     st.rerun()
             with c_step3:
-                if st.button("Next Step ▶", key="s_btn_next") and s_step < max_search_steps - 1:
+                if st.button("Next Step", icon=":material/navigate_next:", key="s_btn_next") and s_step < max_search_steps - 1:
                     st.session_state["search_step_idx"] = s_step + 1
                     st.rerun()
             with c_step4:
-                if st.button("⏭ End", key="s_btn_end"):
+                if st.button("End", icon=":material/last_page:", key="s_btn_end"):
                     st.session_state["search_step_idx"] = max(0, max_search_steps - 1)
                     st.rerun()
 
@@ -1082,7 +1082,7 @@ with tab_co3:
         st.markdown("#### Interactive Sorting Evaluation")
         st.markdown(f"**Original Input Array (from {active_topo_name}):** `{unsorted_nodes}`")
 
-        if st.button("Execute Sorting", type="primary", key="btn_exec_sort"):
+        if st.button("Execute Sorting", icon=":material/sort:", type="primary", key="btn_exec_sort"):
             # Execute genuine sorting algorithms on copies
             res_b = bubble_sort(unsorted_nodes)
             res_i = insertion_sort(unsorted_nodes)
@@ -1267,7 +1267,7 @@ with tab_co5:
         fwd_dst = st.selectbox("Destination Router", options=all_routers, index=fwd_dst_idx, key="fwd_dst_select")
     with fwd_col3:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-        run_fwd_clicked = st.button("Execute Table Forwarding", type="primary", use_container_width=True)
+        run_fwd_clicked = st.button("Execute Table Forwarding", icon=":material/alt_route:", type="primary", use_container_width=True)
 
     if run_fwd_clicked:
         st.session_state["table_fwd_res"] = sim.simulate_table_forwarding(graph, fwd_src, fwd_dst)
