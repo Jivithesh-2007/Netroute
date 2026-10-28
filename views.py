@@ -329,21 +329,21 @@ def render_traversal_simulator(graph: Graph):
             st.session_state['cmp_bar_dst'] = n_d
             sim.invalidate_simulation()
 
-    if st.session_state.get('sim_sel_src') != cur_src:
+    if st.session_state.get('sim_sel_src') not in router_keys or st.session_state.get('sim_sel_src') != cur_src:
         st.session_state['sim_sel_src'] = cur_src
-    if st.session_state.get('sim_sel_dst') != cur_dst:
+    if st.session_state.get('sim_sel_dst') not in router_keys or st.session_state.get('sim_sel_dst') != cur_dst:
         st.session_state['sim_sel_dst'] = cur_dst
-    s_idx = router_keys.index(cur_src)
-    d_idx = router_keys.index(cur_dst)
     with cfg1:
-        sel_src = st.selectbox('Source', options=router_keys, index=s_idx, key='sim_sel_src', on_change=_on_sim_endpoints_changed)
+        sel_src = st.selectbox('Source', options=router_keys, key='sim_sel_src', on_change=_on_sim_endpoints_changed)
     with cfg2:
-        sel_dst = st.selectbox('Destination', options=router_keys, index=d_idx, key='sim_sel_dst', on_change=_on_sim_endpoints_changed)
+        sel_dst = st.selectbox('Destination', options=router_keys, key='sim_sel_dst', on_change=_on_sim_endpoints_changed)
     with cfg3:
         algo_options = ['BFS (Breadth-First Search)', 'DFS (Depth-First Search)', 'Dijkstra (Weighted Shortest Path)']
         cur_algo = st.session_state.get('selected_algo', algo_options[0])
         a_idx = 2 if 'DIJKSTRA' in str(cur_algo).upper() else 1 if 'DFS' in str(cur_algo).upper() else 0
-        sel_algo = st.selectbox('Algorithm', options=algo_options, index=a_idx, key='sim_sel_algo', on_change=_on_sim_endpoints_changed)
+        if st.session_state.get('sim_sel_algo') not in algo_options:
+            st.session_state['sim_sel_algo'] = algo_options[a_idx]
+        sel_algo = st.selectbox('Algorithm', options=algo_options, key='sim_sel_algo', on_change=_on_sim_endpoints_changed)
     with cfg4:
         st.write('')
         st.write('')
@@ -581,17 +581,15 @@ def render_bfs_dfs_comparison(graph: Graph):
             st.session_state['cmp_is_playing'] = False
             st.session_state['cmp_is_paused'] = False
 
-    if st.session_state.get('cmp_bar_src') != cur_src:
+    if st.session_state.get('cmp_bar_src') not in router_keys or st.session_state.get('cmp_bar_src') != cur_src:
         st.session_state['cmp_bar_src'] = cur_src
-    if st.session_state.get('cmp_bar_dst') != cur_dst:
+    if st.session_state.get('cmp_bar_dst') not in router_keys or st.session_state.get('cmp_bar_dst') != cur_dst:
         st.session_state['cmp_bar_dst'] = cur_dst
-    s_idx = router_keys.index(cur_src)
-    d_idx = router_keys.index(cur_dst)
     c_bar1, c_bar2, c_bar3, c_bar4, c_bar5 = st.columns([1.8, 1.8, 1.3, 1.8, 1.1])
     with c_bar1:
-        sel_src = st.selectbox('Source Router', options=router_keys, index=s_idx, key='cmp_bar_src', on_change=_on_cmp_endpoints_changed)
+        sel_src = st.selectbox('Source Router', options=router_keys, key='cmp_bar_src', on_change=_on_cmp_endpoints_changed)
     with c_bar2:
-        sel_dst = st.selectbox('Destination Router', options=router_keys, index=d_idx, key='cmp_bar_dst', on_change=_on_cmp_endpoints_changed)
+        sel_dst = st.selectbox('Destination Router', options=router_keys, key='cmp_bar_dst', on_change=_on_cmp_endpoints_changed)
     with c_bar3:
         st.write('')
         st.write('')
