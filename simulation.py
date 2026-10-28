@@ -122,8 +122,12 @@ def clear_history():
 
 
 def execute_routing(graph: Graph, algo: str, src: str, dst: str) -> Dict[str, Any]:
-    """Runs genuine BFS or DFS, stores steps, records history, and starts playback from step 0."""
-    if "DFS" in algo:
+    """Runs genuine BFS, DFS, or Dijkstra, stores steps, records history, and starts playback from step 0."""
+    algo_upper = algo.upper()
+    if "DIJKSTRA" in algo_upper:
+        from algorithms import dijkstra
+        res = dijkstra(graph, src, dst)
+    elif "DFS" in algo_upper:
         res = dfs(graph, src, dst)
     else:
         res = bfs(graph, src, dst)

@@ -261,6 +261,22 @@ class Graph:
                     queue.append(nbr)
         return False
 
+    def get_reachable_nodes(self, src: str) -> List[str]:
+        """Returns sorted list of all active online routers reachable from src."""
+        src_clean = src.strip().upper()
+        if src_clean not in self.routers or not self.routers[src_clean].is_online:
+            return []
+        visited = {src_clean}
+        queue = deque([src_clean])
+        while queue:
+            curr = queue.popleft()
+            for nbr in self.adjacency.get(curr, []):
+                if (nbr in self.routers and self.routers[nbr].is_online 
+                        and self.is_edge_active(curr, nbr) and nbr not in visited):
+                    visited.add(nbr)
+                    queue.append(nbr)
+        return sorted(list(visited))
+
     def generate_routing_table(self, source_id: str) -> List[Dict[str, Any]]:
         """
         Generates the traditional forwarding/routing table for the selected source router.
@@ -506,6 +522,12 @@ class Graph:
             "edges": [[u, v, self.get_weight(u, v)] for (u, v) in self.get_edges()],
             "failed_edges": [list(e) for e in sorted(self.failed_edges)]
         }
+
+    def clone(self) -> "Graph":
+        """Creates an independent deep copy of this graph."""
+        g = Graph(name=self.name)
+        g.load_from_dict(self.to_dict())
+        return g
 
     def load_from_dict(self, data: Dict[str, Any]) -> Tuple[bool, str]:
         """

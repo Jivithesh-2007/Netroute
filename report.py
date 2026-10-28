@@ -5,6 +5,8 @@ Produces authoritative, standardized JSON execution reports for network routing 
 recording topology snapshots, traversal metrics, queue/stack execution traces, and theoretical complexity.
 """
 
+import io
+import csv
 import json
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
@@ -187,3 +189,141 @@ def generate_comparison_report(
 def export_comparison_report_json(report_data: Dict[str, Any]) -> str:
     """Serializes the comparison report to pretty-printed JSON."""
     return json.dumps(report_data, indent=2)
+
+
+def export_simulation_metrics_csv(report_data: Dict[str, Any]) -> str:
+    """Exports single simulation metrics to a CSV string with clear headers."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Algorithm", "Topology", "Source", "Destination", "Status",
+        "Hop Count", "Visited Routers Count", "Explored Edges Count",
+        "Total Simulation Steps", "Execution Time (ms)", "Route"
+    ])
+    sim = report_data.get("simulation", {})
+    topo = report_data.get("topology", {})
+    route_str = " -> ".join(sim.get("route", [])) if sim.get("route") else "None"
+    writer.writerow([
+        sim.get("algorithm", "Unknown"),
+        topo.get("name", "Active Topology"),
+        sim.get("source", ""),
+        sim.get("destination", ""),
+        sim.get("status", ""),
+        sim.get("hop_count", 0),
+        len(sim.get("visited_order", [])),
+        len(sim.get("explored_edges", [])),
+        sim.get("traversal_steps_count", 0),
+        sim.get("execution_time_ms", 0.0),
+        route_str
+    ])
+    return output.getvalue()
+
+
+def export_comparison_metrics_csv(cmp_report_data: Dict[str, Any]) -> str:
+    """Exports dual or multi-algorithm comparison metrics to a CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Algorithm", "Source", "Destination", "Status", "Hops",
+        "Routers Visited", "Explored Edges", "Data Structure Pushes/Enqueues",
+        "Data Structure Pops/Dequeues", "Max Frontier Depth", "Execution Time (ms)", "Route"
+    ])
+    endpoints = cmp_report_data.get("endpoints", {})
+    src = endpoints.get("source", "")
+    dst = endpoints.get("destination", "")
+
+    for key, name in [("bfs_run", "BFS"), ("dfs_run", "DFS"), ("dijkstra_run", "Dijkstra")]:
+        run = cmp_report_data.get(key)
+        if run:
+            metrics = run.get("metrics", {})
+            route_info = run.get("route", {})
+            writer.writerow([
+                name, src, dst, run.get("status", ""),
+                route_info.get("hop_count", 0),
+                metrics.get("visited_routers_count", 0),
+                metrics.get("explored_edges_count", 0),
+                metrics.get("enqueues_or_pushes", 0),
+                metrics.get("dequeues_or_pops", 0),
+                metrics.get("max_data_structure_depth", 0),
+                metrics.get("execution_time_ms", 0.0),
+                route_info.get("path_string", "None")
+            ])
+    return output.getvalue()
+
+
+def export_resilience_csv(resilience_data: Dict[str, Any]) -> str:
+    """Exports bridge and articulation point resilience analysis to a CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Metric", "Count", "Details"])
+    writer.writerow(["Active Routers", len(resilience_data.get("online_routers", [])), "; ".join(resilience_data.get("online_routers", []))])
+    writer.writerow(["Active Links", len(resilience_data.get("active_edges", [])), "; ".join(f"{u}<->{v}" for (u, v) in resilience_data.get("active_edges", []))])
+    writer.writerow(["Connected Components", resilience_data.get("component_count", 1), f"{resilience_data.get('component_count', 1)} Subnets"])
+    bridges = resilience_data.get("bridges", [])
+    writer.writerow(["Critical Bridges (Cut Edges)", len(bridges), "; ".join(f"{u}<->{v}" for (u, v) in bridges) if bridges else "None (Cyclic / Redundant)"])
+    aps = resilience_data.get("articulation_points", [])
+    writer.writerow(["Critical Articulation Points (Cut Vertices)", len(aps), "; ".join(aps) if aps else "None (Biconnected)"])
+    return output.getvalue()
+
+
+def export_failure_scenario_csv(scenario_data: Dict[str, Any]) -> str:
+    """Exports before-and-after failure scenario results to a CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Phase", "Connected Components", "Bridges Count", "Articulation Points Count", "Route Found", "Hop Count", "Route String"])
+    base = scenario_data.get("baseline", {})
+    fail = scenario_data.get("failure_scenario", {})
+
+    b_bfs = base.get("bfs") or {}
+    f_bfs = fail.get("bfs") or {}
+
+    writer.writerow([
+        "Baseline (Pre-Failure)",
+        base.get("component_count", 1),
+        len(base.get("bridges", [])),
+        len(base.get("articulation_points", [])),
+        b_bfs.get("success", False),
+        b_bfs.get("hops", 0),
+        " -> ".join(b_bfs.get("path", [])) if b_bfs.get("path") else "None"
+    ])
+    writer.writerow([
+        "Failure Scenario (Post-Failure)",
+        fail.get("component_count", 1),
+        len(fail.get("bridges", [])),
+        len(fail.get("articulation_points", [])),
+        f_bfs.get("success", False),
+        f_bfs.get("hops", 0),
+        " -> ".join(f_bfs.get("path", [])) if f_bfs.get("path") else "None (Unreachable)"
+    ])
+    return output.getvalue()
+
+
+def export_benchmark_csv(benchmark_records: List[Dict[str, Any]]) -> str:
+    """Exports benchmark performance suite records to a CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Routers (V)", "Edges (E)", "Density", "Algorithm",
+        "Mean Time (ms)", "Min Time (ms)", "Max Time (ms)", "Std Dev (ms)",
+        "Hops", "Path Cost", "Visited Vertices", "Explored Edges",
+        "Theoretical Time Complexity", "Theoretical Space Complexity"
+    ])
+    for rec in benchmark_records:
+        writer.writerow([
+            rec.get("routers", 0),
+            rec.get("edges", 0),
+            rec.get("density", 0.0),
+            rec.get("algorithm", ""),
+            rec.get("mean_time_ms", 0.0),
+            rec.get("min_time_ms", 0.0),
+            rec.get("max_time_ms", 0.0),
+            rec.get("std_time_ms", 0.0),
+            rec.get("hops", 0),
+            rec.get("path_cost", 0.0),
+            rec.get("visited_count", 0),
+            rec.get("explored_edges", 0),
+            rec.get("theoretical_time", ""),
+            rec.get("theoretical_space", "")
+        ])
+    return output.getvalue()
+

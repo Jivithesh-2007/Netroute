@@ -22,11 +22,21 @@ import plotly.graph_objects as go
 
 from network import Graph, validate_router_id
 from algorithms import (
-    bfs, dfs, linear_search, binary_search, bubble_sort, insertion_sort,
-    build_traversal_tree, compare_bfs_dfs, generate_simulation_report, generate_comparison_report
+    bfs, dfs, dijkstra, linear_search, binary_search, bubble_sort, insertion_sort,
+    build_traversal_tree, compare_bfs_dfs, compare_routing_strategies,
+    find_bridges, find_articulation_points, simulate_failure,
+    generate_benchmark_graph, run_benchmark_suite,
+    generate_simulation_report, generate_comparison_report
+)
+from report import (
+    export_simulation_metrics_csv, export_comparison_metrics_csv,
+    export_resilience_csv, export_failure_scenario_csv, export_benchmark_csv
 )
 import simulation as sim
-from visualizer import build_network_figure, build_traversal_tree_figure, build_algo_result_figure, render_plotly
+from visualizer import (
+    build_network_figure, build_traversal_tree_figure, build_algo_result_figure,
+    render_plotly, export_figure_png
+)
 from theme import (
     render_path_pills, render_step_card,
     PRIMARY, PRIMARY_DARK, CYAN, PURPLE, SUCCESS, WARNING, ERROR, TEXT_MAIN, TEXT_MUTED, BORDER
@@ -471,9 +481,14 @@ def render_traversal_simulator(graph: Graph):
     with cfg2:
         sel_dst = st.selectbox("Destination", options=router_keys, index=d_idx, key="sim_sel_dst")
     with cfg3:
-        algo_options = ["BFS (Breadth-First Search)", "DFS (Depth-First Search)"]
+        algo_options = ["BFS (Breadth-First Search)", "DFS (Depth-First Search)", "Dijkstra (Weighted Shortest Path)"]
         cur_algo = st.session_state.get("selected_algo", algo_options[0])
-        a_idx = 0 if "BFS" in cur_algo else 1
+        if "DIJKSTRA" in str(cur_algo).upper():
+            a_idx = 2
+        elif "DFS" in str(cur_algo).upper():
+            a_idx = 1
+        else:
+            a_idx = 0
         sel_algo = st.selectbox("Algorithm", options=algo_options, index=a_idx, key="sim_sel_algo")
     with cfg4:
         st.write("")
@@ -579,10 +594,19 @@ def render_traversal_simulator(graph: Graph):
 
     with v_col2:
         is_bfs = "BFS" in sim_res.get("algorithm", "")
+        is_dijkstra = "Dijkstra" in sim_res.get("algorithm", "")
 
         # Live Data Structure Box
-        ds_title = "FIFO Queue (BFS)" if is_bfs else "LIFO Stack (DFS)"
-        ds_badge = "FRONT -> REAR" if is_bfs else "TOP -> BOTTOM"
+        if is_bfs:
+            ds_title = "FIFO Queue (BFS)"
+            ds_badge = "FRONT -> REAR"
+        elif is_dijkstra:
+            ds_title = "Min-Priority Queue (Dijkstra)"
+            ds_badge = "MIN DIST -> REAR"
+        else:
+            ds_title = "LIFO Stack (DFS)"
+            ds_badge = "TOP -> BOTTOM"
+
         st.markdown(
             f"<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;'>"
             f"<span style='font-weight:700; color:{PRIMARY};'>{ds_title}</span>"
@@ -600,23 +624,29 @@ def render_traversal_simulator(graph: Graph):
 
         # Structure Metrics
         sm1, sm2, sm3 = st.columns(3)
-        if is_bfs:
+        if is_bfs or is_dijkstra:
             sm1.metric("Enqueues", current_step.get("enqueues", 0) if current_step else 0)
             sm2.metric("Dequeues", current_step.get("dequeues", 0) if current_step else 0)
-            sm3.metric("Peak Queue", sim_res.get("max_structure", 0))
+            sm3.metric("Peak Structure", sim_res.get("max_structure", 0))
         else:
             sm1.metric("Pushes", current_step.get("pushes", 0) if current_step else 0)
             sm2.metric("Pops", current_step.get("pops", 0) if current_step else 0)
             sm3.metric("Peak Stack", sim_res.get("max_structure", 0))
 
-        # Current Step Card
+        # Current Step Card with Explainable Event Rationale
         if current_step:
+            nbr_str = f"<b>Neighbor Examined:</b> {current_step.get('neighbor')} (Status: {current_step.get('neighbor_status', 'examined')})" if current_step.get("neighbor") else ""
+            route_str = " -> ".join(current_step.get("current_path", [])) if current_step.get("current_path") else ""
+            card_color = PRIMARY if is_bfs else (CYAN if is_dijkstra else PURPLE)
             st.markdown(
                 render_step_card(
                     step_num=current_step.get("step", step_idx + 1),
                     operation=current_step.get("operation", "EXPLORE"),
                     description=current_step.get("description", ""),
-                    color=PRIMARY if is_bfs else PURPLE
+                    color=card_color,
+                    why=current_step.get("why", ""),
+                    neighbor_info=nbr_str,
+                    route_info=route_str
                 ),
                 unsafe_allow_html=True
             )
@@ -646,10 +676,12 @@ def render_traversal_simulator(graph: Graph):
         else:
             st.error(f"Routing Failed: {sim_res.get('message', 'Destination unreachable.')}")
 
+        cost_line = f"• <b>Total Path Cost:</b> <code>{sim_res.get('path_cost', 0.0):.1f}</code><br>" if "path_cost" in sim_res else ""
         st.markdown(
             f"<div style='font-size:0.88rem; color:#334155; line-height:1.7;'>"
             f"• <b>Discovered Path:</b> <code>{' -> '.join(sim_res.get('path', [])) if sim_res.get('path') else 'None'}</code><br>"
             f"• <b>Hop Count:</b> <code>{sim_res.get('hops', 0)} hops</code><br>"
+            f"{cost_line}"
             f"• <b>Traversal Order:</b> <code>{', '.join(sim_res.get('visited', []))}</code><br>"
             f"• <b>Explored Connections:</b> <code>{sim_res.get('explored_edges_count', 0)}</code><br>"
             f"• <b>Execution Time:</b> <code>{sim_res.get('execution_time_ms', 0.0):.3f} ms</code>"
@@ -659,11 +691,17 @@ def render_traversal_simulator(graph: Graph):
 
     with res_c2:
         st.markdown("##### Theoretical Complexity")
+        t_comp = "O((V + E) log V)" if is_dijkstra else "O(V + E)"
+        t_desc = (
+            "Dijkstra extracts minimum tentative distances using a binary heap priority queue."
+            if is_dijkstra else
+            "Each online router is queued/stacked at most once, and each incident link is examined at most twice."
+        )
         st.markdown(
-            """
+            f"""
             <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:14px; font-size:0.86rem;">
-                <b>Time Complexity:</b> <code>O(V + E)</code><br>
-                <span style="color:#64748B;">Each online router is queued/stacked at most once, and each incident link is examined at most twice.</span><br><br>
+                <b>Time Complexity:</b> <code>{t_comp}</code><br>
+                <span style="color:#64748B;">{t_desc}</span><br><br>
                 <b>Auxiliary Space:</b> <code>O(V)</code><br>
                 <span style="color:#64748B;">For the visited set, parent pointers, and traversal frontier data structure.</span>
             </div>
@@ -671,16 +709,42 @@ def render_traversal_simulator(graph: Graph):
             unsafe_allow_html=True
         )
 
-        # Download Report Button
-        report_json = json.dumps(generate_simulation_report(graph, sim_res, sel_src, sel_dst), indent=2)
-        st.download_button(
-            label="Download JSON Simulation Report",
-            data=report_json,
-            file_name=f"netroute_report_{sel_algo[:3].lower()}_{sel_src}_{sel_dst}.json",
-            mime="application/json",
-            width="stretch",
-            key="sim_dl_report_btn"
-        )
+        full_rep = generate_simulation_report(graph, sim_res, sel_src, sel_dst, algo_name=sel_algo)
+        report_json = json.dumps(full_rep, indent=2)
+        report_csv = export_simulation_metrics_csv(full_rep)
+
+        dl_c1, dl_c2, dl_c3 = st.columns(3)
+        with dl_c1:
+            st.download_button(
+                label="JSON Report",
+                data=report_json,
+                file_name=f"netroute_report_{sel_algo[:3].lower()}_{sel_src}_{sel_dst}.json",
+                mime="application/json",
+                width="stretch",
+                key="sim_dl_report_btn"
+            )
+        with dl_c2:
+            st.download_button(
+                label="CSV Metrics",
+                data=report_csv,
+                file_name=f"netroute_metrics_{sel_algo[:3].lower()}_{sel_src}_{sel_dst}.csv",
+                mime="text/csv",
+                width="stretch",
+                key="sim_dl_csv_btn"
+            )
+        with dl_c3:
+            png_bytes = export_figure_png(fig)
+            if png_bytes:
+                st.download_button(
+                    label="Graph PNG",
+                    data=png_bytes,
+                    file_name=f"netroute_graph_{sel_algo[:3].lower()}_{sel_src}_{sel_dst}.png",
+                    mime="image/png",
+                    width="stretch",
+                    key="sim_dl_png_btn"
+                )
+            else:
+                st.caption("PNG export requires Kaleido.")
 
 
 # =============================================================================
@@ -869,19 +933,311 @@ def render_bfs_dfs_comparison(graph: Graph):
         unsafe_allow_html=True
     )
 
-    # Note on weighted links
-    st.caption("Note on link weights: Standard BFS and DFS operate on unweighted graphs and do not compute minimum-cost routes on weighted links. To minimize total weight, Dijkstra's algorithm is required.")
+    # 3-Way Routing Strategy Comparison Expander (BFS vs DFS vs Dijkstra)
+    with st.expander("Route Strategy Comparison (BFS vs. DFS vs. Dijkstra)", expanded=False):
+        st.markdown("*Evaluation of unweighted shortest hops (BFS), branch exploration (DFS), and weighted least-cost paths (Dijkstra).*")
+        strat_res = compare_routing_strategies(graph, sel_src, sel_dst)
+        b_run = strat_res["bfs"]
+        d_run = strat_res["dfs"]
+        dj_run = strat_res["dijkstra"]
 
-    # Combined Report Download
-    report_json = json.dumps(generate_comparison_report(graph, cmp_res, sel_src, sel_dst), indent=2)
-    st.download_button(
-        label="Download Combined Comparison JSON Report",
-        data=report_json,
-        file_name=f"netroute_comparison_bfs_vs_dfs_{sel_src}_{sel_dst}.json",
-        mime="application/json",
-        width="stretch",
-        key="cmp_dl_report_btn"
-    )
+        strat_table = [
+            {"Property": "Guaranteed Property", "BFS (Breadth-First)": "Minimum Hops (Unweighted)", "DFS (Depth-First)": "Deep Branch Exploration", "Dijkstra (Priority Queue)": "Minimum Total Cost (Weighted)"},
+            {"Property": "Discovered Path", "BFS (Breadth-First)": " -> ".join(b_run.get("path", [])) or "No path", "DFS (Depth-First)": " -> ".join(d_run.get("path", [])) or "No path", "Dijkstra (Priority Queue)": " -> ".join(dj_run.get("path", [])) or "No path"},
+            {"Property": "Hop Count", "BFS (Breadth-First)": f"{b_run.get('hops', 0)} hops", "DFS (Depth-First)": f"{d_run.get('hops', 0)} hops", "Dijkstra (Priority Queue)": f"{dj_run.get('hops', 0)} hops"},
+            {"Property": "Total Accumulated Cost", "BFS (Breadth-First)": f"{b_run.get('path_cost', 0.0):.1f}", "DFS (Depth-First)": f"{d_run.get('path_cost', 0.0):.1f}", "Dijkstra (Priority Queue)": f"{dj_run.get('path_cost', 0.0):.1f} (Least Cost)"},
+            {"Property": "Routers Visited", "BFS (Breadth-First)": str(len(b_run.get("visited", []))), "DFS (Depth-First)": str(len(d_run.get("visited", []))), "Dijkstra (Priority Queue)": str(len(dj_run.get("visited", [])))},
+            {"Property": "Execution Time (ms)", "BFS (Breadth-First)": f"{b_run.get('execution_time_ms', 0.0):.3f} ms", "DFS (Depth-First)": f"{d_run.get('execution_time_ms', 0.0):.3f} ms", "Dijkstra (Priority Queue)": f"{dj_run.get('execution_time_ms', 0.0):.3f} ms"},
+            {"Property": "Theoretical Time Complexity", "BFS (Breadth-First)": "O(V + E)", "DFS (Depth-First)": "O(V + E)", "Dijkstra (Priority Queue)": "O((V + E) log V)"},
+            {"Property": "Auxiliary Space Complexity", "BFS (Breadth-First)": "O(V)", "DFS (Depth-First)": "O(V)", "Dijkstra (Priority Queue)": "O(V)"}
+        ]
+        st.dataframe(pd.DataFrame(strat_table), width="stretch", hide_index=True)
+        st.info("Notice: BFS optimizes hop count across unweighted edges, whereas Dijkstra minimizes cumulative link weights. DFS does not guarantee either optimality property.")
+
+    # Combined Multi-Format Report Downloads
+    comp_rep = generate_comparison_report(graph, cmp_res, sel_src, sel_dst)
+    report_json = json.dumps(comp_rep, indent=2)
+    report_csv = export_comparison_metrics_csv(comp_rep)
+
+    dl_c1, dl_c2, dl_c3, dl_c4 = st.columns(4)
+    with dl_c1:
+        st.download_button(
+            label="Download JSON Report",
+            data=report_json,
+            file_name=f"netroute_comparison_bfs_vs_dfs_{sel_src}_{sel_dst}.json",
+            mime="application/json",
+            width="stretch",
+            key="cmp_dl_report_btn"
+        )
+    with dl_c2:
+        st.download_button(
+            label="Download CSV Metrics",
+            data=report_csv,
+            file_name=f"netroute_comparison_{sel_src}_{sel_dst}.csv",
+            mime="text/csv",
+            width="stretch",
+            key="cmp_dl_csv_btn"
+        )
+    with dl_c3:
+        bfs_png = export_figure_png(fig_bfs)
+        if bfs_png:
+            st.download_button(
+                label="BFS Graph PNG",
+                data=bfs_png,
+                file_name=f"netroute_bfs_graph_{sel_src}_{sel_dst}.png",
+                mime="image/png",
+                width="stretch",
+                key="cmp_dl_bfs_png"
+            )
+        else:
+            st.caption("BFS PNG requires Kaleido.")
+    with dl_c4:
+        dfs_png = export_figure_png(fig_dfs)
+        if dfs_png:
+            st.download_button(
+                label="DFS Graph PNG",
+                data=dfs_png,
+                file_name=f"netroute_dfs_graph_{sel_src}_{sel_dst}.png",
+                mime="image/png",
+                width="stretch",
+                key="cmp_dl_dfs_png"
+            )
+        else:
+            st.caption("DFS PNG requires Kaleido.")
+
+
+
+# =============================================================================
+# 4B. NETWORK FAILURE LAB VIEW
+# =============================================================================
+def render_network_failure_lab(graph: Graph):
+    st.markdown("## Network Failure Lab")
+    st.markdown("*Interactive sandbox for multi-router and link failure simulation on a reversible scenario clone, measuring reachability and route divergence.*")
+
+    router_keys = sorted(list(graph.routers.keys()))
+    if not router_keys:
+        st.warning("Network graph is empty. Please configure routers first.")
+        return
+
+    edges = graph.get_edges()
+    edge_str_map = {f"{u} <—> {v}": (u, v) for u, v in edges}
+    edge_options = list(edge_str_map.keys())
+
+    cur_src = st.session_state.get("source_id", router_keys[0])
+    cur_dst = st.session_state.get("dest_id", router_keys[-1] if len(router_keys) > 1 else router_keys[0])
+    s_idx = router_keys.index(cur_src) if cur_src in router_keys else 0
+    d_idx = router_keys.index(cur_dst) if cur_dst in router_keys else len(router_keys) - 1
+
+    # Configuration panel
+    fl_c1, fl_c2 = st.columns(2)
+    with fl_c1:
+        sel_src = st.selectbox("Source (Origin)", options=router_keys, index=s_idx, key="fl_sel_src")
+    with fl_c2:
+        sel_dst = st.selectbox("Destination (Target)", options=router_keys, index=d_idx, key="fl_sel_dst")
+
+    # Failure selection inputs
+    f_in1, f_in2 = st.columns(2)
+    with f_in1:
+        failed_routers_sel = st.multiselect(
+            "Select Routers to Take Offline",
+            options=router_keys,
+            default=st.session_state.get("fl_selected_routers", []),
+            help="Routers marked offline will reject all incoming and outgoing packet transmissions.",
+            key="fl_routers_multi"
+        )
+    with f_in2:
+        failed_links_sel = st.multiselect(
+            "Select Transmission Links to Sever",
+            options=edge_options,
+            default=st.session_state.get("fl_selected_links", []),
+            help="Severed links will be impassable for packet routing.",
+            key="fl_links_multi"
+        )
+
+    # Convert link strings back to tuples
+    clean_failed_edges = [edge_str_map[s] for s in failed_links_sel if s in edge_str_map]
+
+    # Action Controls
+    btn_c1, btn_c2, btn_c3, btn_c4 = st.columns([1.5, 1.2, 1.2, 2])
+    with btn_c1:
+        sim_btn = st.button("Apply Failure Scenario", type="primary", width="stretch", key="fl_btn_simulate")
+    with btn_c2:
+        reset_btn = st.button("Reset Scenario", width="stretch", key="fl_btn_reset")
+    with btn_c3:
+        restore_btn = st.button("Restore Baseline", width="stretch", key="fl_btn_restore")
+    with btn_c4:
+        commit_btn = st.button("Commit Scenario to Active Topology", width="stretch", key="fl_btn_commit", help="Permanently applies the offline router states and severed link states to the active network graph.")
+
+    if reset_btn or restore_btn:
+        st.session_state["fl_selected_routers"] = []
+        st.session_state["fl_selected_links"] = []
+        st.session_state.pop("fl_scenario_data", None)
+        st.rerun()
+
+    if commit_btn:
+        # Commit scenario changes permanently to active graph
+        for r in failed_routers_sel:
+            if r in graph.routers:
+                graph.routers[r].is_online = False
+        for u, v in clean_failed_edges:
+            graph.failed_edges.add(tuple(sorted((u, v))))
+        sim.invalidate_simulation()
+        st.success(f"Permanently committed {len(failed_routers_sel)} router outages and {len(clean_failed_edges)} link severances to active network.")
+        st.rerun()
+
+    # Always compute or use cached scenario data
+    scenario_data = simulate_failure(graph, failed_routers_sel, clean_failed_edges, sel_src, sel_dst)
+    st.session_state["fl_scenario_data"] = scenario_data
+
+    # Scenario Summary Callouts
+    impact = scenario_data["impact_analysis"]
+    base_info = scenario_data["baseline"]
+    scen_info = scenario_data["failure_scenario"]
+    scen_graph: Graph = scenario_data["scenario_graph"]
+
+    st.write("")
+    if impact.get("destination_became_unreachable"):
+        st.error(
+            f"**CRITICAL ROUTE SEVERANCE**: Destination router **{sel_dst}** became completely unreachable from **{sel_src}**! "
+            f"The selected failures severed all path redundancies."
+        )
+    elif impact.get("route_survived"):
+        hop_delta = impact.get("hop_delta", 0)
+        cost_delta = impact.get("cost_delta", 0.0)
+        delta_str = ""
+        if hop_delta and hop_delta > 0:
+            delta_str = f"Route diverted (+{hop_delta} extra hops, cost delta: +{cost_delta:.1f})."
+        else:
+            delta_str = "Route remained identical or equivalent."
+        st.success(f"**ROUTE SURVIVED**: Packets can still reach **{sel_dst}** from **{sel_src}**! {delta_str}")
+    else:
+        st.info("Baseline and Scenario evaluated.")
+
+    if impact.get("disconnected_routers"):
+        st.warning(f"**Isolated Routers**: Outages isolated `{', '.join(impact['disconnected_routers'])}` from origin {sel_src}.")
+
+    # Dual Graph Visualizations
+    st.write("")
+    g_c1, g_c2 = st.columns(2)
+
+    with g_c1:
+        st.markdown(
+            "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>"
+            "<span style='font-weight:700; color:#2563EB; font-size:1.05rem;'>Baseline Topology</span>"
+            "<span style='background:#DBEAFE; color:#1E40AF; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:700;'>PRE-FAILURE</span>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+        base_bfs = base_info.get("bfs") or {}
+        base_vis = {
+            "is_completed": True,
+            "route_nodes": base_bfs.get("path", []),
+            "route_edges": [(base_bfs.get("path")[i], base_bfs.get("path")[i+1]) for i in range(len(base_bfs.get("path", [])) - 1)] if base_bfs.get("path") else []
+        }
+        fig_base = build_network_figure(graph, base_vis, sel_src, sel_dst, height=390, title="Baseline Network & Active Route")
+        render_plotly(fig_base, key="fl_base_graph")
+        if base_bfs.get("path"):
+            st.caption(f"**Baseline Route:** `{ ' -> '.join(base_bfs['path']) }` ({base_bfs.get('hops', 0)} hops)")
+        else:
+            st.caption("No route existed in baseline.")
+
+    with g_c2:
+        st.markdown(
+            "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;'>"
+            "<span style='font-weight:700; color:#EF4444; font-size:1.05rem;'>Simulated Failure Scenario</span>"
+            "<span style='background:#FEE2E2; color:#991B1B; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:700;'>SCENARIO CLONE</span>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+        scen_bfs = scen_info.get("bfs") or {}
+        scen_vis = {
+            "is_completed": True,
+            "route_nodes": scen_bfs.get("path", []),
+            "route_edges": [(scen_bfs.get("path")[i], scen_bfs.get("path")[i+1]) for i in range(len(scen_bfs.get("path", [])) - 1)] if scen_bfs.get("path") else []
+        }
+        fig_scen = build_network_figure(scen_graph, scen_vis, sel_src, sel_dst, height=390, title="Failure Scenario & Rerouted Path")
+        render_plotly(fig_scen, key="fl_scen_graph")
+        if scen_bfs.get("path"):
+            st.caption(f"**Scenario Route:** `{ ' -> '.join(scen_bfs['path']) }` ({scen_bfs.get('hops', 0)} hops)")
+        else:
+            st.caption("**Scenario Route:** None (Unreachable)")
+
+    # Comparative Metrics Table
+    st.write("")
+    st.markdown("### Before vs. After Failure Scenario Metrics")
+    b_dijk = base_info.get("dijkstra") or {}
+    s_dijk = scen_info.get("dijkstra") or {}
+
+    comp_rows = [
+        {"Property": "Connected Subnets (Components)", "Baseline (Pre-Failure)": str(base_info.get("component_count", 1)), "Failure Scenario (Post-Failure)": str(scen_info.get("component_count", 1)), "Delta": f"+{impact.get('component_delta', 0)} Subnets" if impact.get('component_delta', 0) > 0 else "0 (No split)"},
+        {"Property": "Destination Reachability", "Baseline (Pre-Failure)": "REACHABLE" if (base_bfs and base_bfs.get("success")) else "UNREACHABLE", "Failure Scenario (Post-Failure)": "REACHABLE" if (scen_bfs and scen_bfs.get("success")) else "UNREACHABLE", "Delta": "Severed" if impact.get("destination_became_unreachable") else ("Survived" if impact.get("route_survived") else "Unchanged")},
+        {"Property": "Discovered Route", "Baseline (Pre-Failure)": " -> ".join(base_bfs.get("path", [])) or "None", "Failure Scenario (Post-Failure)": " -> ".join(scen_bfs.get("path", [])) or "None", "Delta": "Diverted" if base_bfs.get("path") != scen_bfs.get("path") else "Identical"},
+        {"Property": "Hop Count", "Baseline (Pre-Failure)": f"{base_bfs.get('hops', 0)} hops", "Failure Scenario (Post-Failure)": f"{scen_bfs.get('hops', 0)} hops" if scen_bfs.get("success") else "N/A", "Delta": f"{impact.get('hop_delta'):+d} hops" if impact.get('hop_delta') is not None else "N/A"},
+        {"Property": "Least-Cost Route Weight", "Baseline (Pre-Failure)": f"{b_dijk.get('path_cost', 0.0):.1f}", "Failure Scenario (Post-Failure)": f"{s_dijk.get('path_cost', 0.0):.1f}" if s_dijk.get("success") else "N/A", "Delta": f"{impact.get('cost_delta'):+.1f}" if impact.get('cost_delta') is not None else "N/A"},
+        {"Property": "Critical Bridges Remaining", "Baseline (Pre-Failure)": str(len(base_info.get("bridges", []))), "Failure Scenario (Post-Failure)": str(len(scen_info.get("bridges", []))), "Delta": str(len(scen_info.get("bridges", [])) - len(base_info.get("bridges", [])))},
+        {"Property": "Articulation Points Remaining", "Baseline (Pre-Failure)": str(len(base_info.get("articulation_points", []))), "Failure Scenario (Post-Failure)": str(len(scen_info.get("articulation_points", []))), "Delta": str(len(scen_info.get("articulation_points", [])) - len(base_info.get("articulation_points", [])))}
+    ]
+    st.dataframe(pd.DataFrame(comp_rows), width="stretch", hide_index=True)
+
+    # Downloads
+    st.write("")
+    scen_export_dict = {
+        "report_type": "NetRoute Failure Scenario Report",
+        "schema_version": "1.0",
+        "timestamp": scenario_data["timestamp"],
+        "topology_name": graph.name,
+        "failed_routers": failed_routers_sel,
+        "failed_edges": [list(e) for e in clean_failed_edges],
+        "endpoints": {"source": sel_src, "destination": sel_dst},
+        "impact_analysis": impact,
+        "baseline": {
+            "component_count": base_info["component_count"],
+            "route": base_bfs.get("path", []),
+            "hops": base_bfs.get("hops", 0),
+            "cost": b_dijk.get("path_cost", 0.0)
+        },
+        "failure_scenario": {
+            "component_count": scen_info["component_count"],
+            "route": scen_bfs.get("path", []),
+            "hops": scen_bfs.get("hops", 0),
+            "cost": s_dijk.get("path_cost", 0.0)
+        }
+    }
+    scen_json = json.dumps(scen_export_dict, indent=2)
+    scen_csv = export_failure_scenario_csv(scenario_data)
+
+    dl_f1, dl_f2, dl_f3 = st.columns(3)
+    with dl_f1:
+        st.download_button(
+            label="Download Failure Scenario JSON",
+            data=scen_json,
+            file_name=f"netroute_failure_scenario_{sel_src}_{sel_dst}.json",
+            mime="application/json",
+            width="stretch",
+            key="fl_dl_json"
+        )
+    with dl_f2:
+        st.download_button(
+            label="Download Scenario CSV",
+            data=scen_csv,
+            file_name=f"netroute_failure_scenario_{sel_src}_{sel_dst}.csv",
+            mime="text/csv",
+            width="stretch",
+            key="fl_dl_csv"
+        )
+    with dl_f3:
+        scen_png = export_figure_png(fig_scen)
+        if scen_png:
+            st.download_button(
+                label="Scenario Graph PNG",
+                data=scen_png,
+                file_name=f"netroute_failure_scenario_{sel_src}_{sel_dst}.png",
+                mime="image/png",
+                width="stretch",
+                key="fl_dl_png"
+            )
+        else:
+            st.caption("PNG requires Kaleido.")
 
 
 # =============================================================================
@@ -1160,19 +1516,164 @@ def render_routing_table_simulator(graph: Graph):
 # 8. NETWORK ANALYSIS VIEW
 # =============================================================================
 def render_network_analysis(graph: Graph):
-    st.markdown("## Network Analysis")
-    st.markdown("*Comprehensive graph topology diagnostics, router degree distribution, and reachability analysis.*")
+    st.markdown("## Network Analysis & Resilience")
+    st.markdown("*Comprehensive graph topology diagnostics, router degree distribution, Tarjan resilience analysis (Bridges & Articulation Points), and reachability analysis.*")
 
     summary = graph.get_summary()
+    bridges = find_bridges(graph)
+    aps = find_articulation_points(graph)
 
-    na1, na2, na3, na4 = st.columns(4)
+    na1, na2, na3, na4, na5, na6 = st.columns(6)
     na1.metric("Total Routers", summary["total_routers"], f"{summary['online_routers']} online")
     na2.metric("Total Links", summary["total_edges"], f"{len(graph.failed_edges)} failed")
     na3.metric("Components", summary["component_count"])
     na4.metric("Connected", "YES" if summary["is_connected"] else "NO")
+    na5.metric("Critical Bridges", len(bridges), "Cut Edges" if bridges else "Biconnected")
+    na6.metric("Articulation Points", len(aps), "Cut Vertices" if aps else "Resilient")
 
     st.write("")
 
+    # Topology Resilience Diagram
+    st.markdown("### Topology Resilience Map")
+    st.caption("Bridges (amber dashed connections with ⚡Bridge badges) and Articulation Points (amber routers with [AP] badges) represent single points of failure.")
+    cur_src = st.session_state.get("source_id", "N1")
+    cur_dst = st.session_state.get("dest_id", "N7")
+    empty_vis = {"is_completed": False}
+    fig_resil = build_network_figure(
+        graph,
+        empty_vis,
+        cur_src,
+        cur_dst,
+        height=420,
+        title="Network Resilience Map (Critical Bridges & Articulation Points)",
+        highlight_bridges=set(bridges),
+        highlight_aps=set(aps)
+    )
+    render_plotly(fig_resil, key="na_resilience_fig")
+
+    # Resilience Tables
+    st.write("")
+    res_tab1, res_tab2 = st.columns(2)
+
+    with res_tab1:
+        st.markdown("#### Critical Bridges (Cut Edges)")
+        if bridges:
+            b_rows = []
+            for u, v in bridges:
+                # Calculate simulated component count if this bridge is severed
+                test_g = graph.clone()
+                test_g.failed_edges.add(tuple(sorted((u, v))))
+                test_comps = test_g.get_connected_components()
+                b_rows.append({
+                    "Bridge Link": f"{u} <—> {v}",
+                    "Cost": str(graph.get_weight(u, v)),
+                    "Subnets After Removal": str(len(test_comps)),
+                    "Impact": f"Partitions network into {len(test_comps)} isolated components"
+                })
+            st.dataframe(pd.DataFrame(b_rows), width="stretch", hide_index=True)
+        else:
+            st.success("No critical bridges detected. Network links exhibit 2-edge-connected cyclic redundancy.")
+
+    with res_tab2:
+        st.markdown("#### Critical Articulation Points (Cut Vertices)")
+        if aps:
+            ap_rows = []
+            for node in aps:
+                # Calculate simulated component count if this node is taken offline
+                test_g = graph.clone()
+                if node in test_g.routers:
+                    test_g.routers[node].is_online = False
+                test_comps = test_g.get_connected_components()
+                ap_rows.append({
+                    "Router ID": node,
+                    "Name": graph.routers[node].name,
+                    "Degree": str(len(graph.adjacency.get(node, []))),
+                    "Subnets After Outage": str(len(test_comps)),
+                    "Impact": f"Outage isolates remaining routers into {len(test_comps)} subnets"
+                })
+            st.dataframe(pd.DataFrame(ap_rows), width="stretch", hide_index=True)
+        else:
+            st.success("No critical articulation points detected. Network topology is 2-vertex-connected.")
+
+    # Interactive Resilience Failure Removal Experiment
+    st.write("")
+    with st.expander("Interactive Resilience Removal Experiment", expanded=False):
+        st.markdown("*Select a critical bridge or articulation point to simulate its removal and observe the instant connectivity impact.*")
+        exp_c1, exp_c2, exp_c3 = st.columns([2, 2, 1.5])
+        
+        sim_options = []
+        for u, v in bridges:
+            sim_options.append(f"Bridge: {u} <—> {v}")
+        for a in aps:
+            sim_options.append(f"Articulation Point: {a} ({graph.routers[a].name})")
+
+        if sim_options:
+            with exp_c1:
+                sel_failure = st.selectbox("Element to Remove", options=sim_options, key="na_sel_failure")
+            with exp_c2:
+                eval_src = st.selectbox("Origin Router", options=sorted(list(graph.routers.keys())), key="na_eval_src")
+            with exp_c3:
+                st.write("")
+                st.write("")
+                run_test = st.button("Simulate Removal", type="primary", width="stretch", key="na_btn_sim_remove")
+
+            if run_test or "na_sim_result" in st.session_state:
+                if run_test:
+                    test_g = graph.clone()
+                    if sel_failure.startswith("Bridge:"):
+                        b_str = sel_failure.replace("Bridge:", "").strip()
+                        u_part, v_part = [p.strip() for p in b_str.split("<—>")]
+                        test_g.failed_edges.add(tuple(sorted((u_part, v_part))))
+                    else:
+                        ap_id = sel_failure.split(":")[1].split("(")[0].strip()
+                        if ap_id in test_g.routers:
+                            test_g.routers[ap_id].is_online = False
+
+                    new_comps = test_g.get_connected_components()
+                    reach_nodes = test_g.get_reachable_nodes(eval_src)
+                    all_nodes = set(graph.routers.keys())
+                    lost_nodes = sorted(list(all_nodes - set(reach_nodes)))
+                    st.session_state["na_sim_result"] = {
+                        "element": sel_failure,
+                        "origin": eval_src,
+                        "new_comps_count": len(new_comps),
+                        "new_comps": [sorted(list(c)) for c in new_comps],
+                        "reachable_count": len(reach_nodes),
+                        "lost_nodes": lost_nodes
+                    }
+
+                res_info = st.session_state.get("na_sim_result")
+                if res_info:
+                    st.warning(
+                        f"**Simulated Removal of {res_info['element']}**: "
+                        f"Network split into **{res_info['new_comps_count']} components**! "
+                        f"Routers reachable from {res_info['origin']}: `{res_info['reachable_count']}` of {len(graph.routers)}. "
+                        f"Isolated routers: `{', '.join(res_info['lost_nodes']) if res_info['lost_nodes'] else 'None'}`."
+                    )
+        else:
+            st.info("The network has no bridges or articulation points; it is fully resilient against single link or router failures.")
+
+    # Export Resilience CSV
+    resilience_payload = {
+        "online_routers": [r for r, obj in graph.routers.items() if obj.is_online],
+        "active_edges": [e for e in graph.get_edges() if graph.is_edge_active(e[0], e[1])],
+        "component_count": summary["component_count"],
+        "bridges": bridges,
+        "articulation_points": aps
+    }
+    res_csv = export_resilience_csv(resilience_payload)
+    dl_rc1, dl_rc2 = st.columns([1, 3])
+    with dl_rc1:
+        st.download_button(
+            label="Download Resilience CSV",
+            data=res_csv,
+            file_name=f"netroute_resilience_{graph.name.lower().replace(' ', '_')}.csv",
+            mime="text/csv",
+            width="stretch",
+            key="na_dl_resilience_csv"
+        )
+
+    st.write("")
     # Degree distribution
     st.markdown("### Router Degree Distribution")
     router_degrees = []
@@ -1209,6 +1710,202 @@ def render_network_analysis(graph: Graph):
                 "Target Status": "ONLINE" if graph.routers[target].is_online else "OFFLINE"
             })
         st.dataframe(pd.DataFrame(reach_rows), width="stretch", hide_index=True)
+
+
+
+# =============================================================================
+# 8B. ALGORITHM BENCHMARK LAB VIEW
+# =============================================================================
+def render_benchmark_lab(graph: Graph):
+    st.markdown("## Algorithm Benchmark Lab")
+    st.markdown("*Empirical evaluation of BFS, DFS, and Dijkstra on synthetic graphs of varying scale and density with high-resolution execution timing.*")
+
+    st.caption("Benchmark execution uses monotonic high-resolution timing (`time.perf_counter()`) to measure pure algorithmic execution time, strictly excluding Streamlit UI rendering, Plotly layout generation, and network serialization.")
+
+    bc1, bc2, bc3 = st.columns([2, 1.5, 1.5])
+    with bc1:
+        router_options = [5, 10, 15, 20, 30, 40, 50, 75, 100]
+        sel_counts = st.multiselect(
+            "Router Counts (V) to Evaluate",
+            options=router_options,
+            default=[5, 10, 20, 30, 50],
+            key="bm_router_counts"
+        )
+    with bc2:
+        sel_density = st.slider(
+            "Network Edge Density",
+            min_value=0.10,
+            max_value=0.80,
+            value=0.25,
+            step=0.05,
+            key="bm_density"
+        )
+    with bc3:
+        sel_algos = st.multiselect(
+            "Algorithms to Benchmark",
+            options=["BFS", "DFS", "Dijkstra"],
+            default=["BFS", "DFS", "Dijkstra"],
+            key="bm_algos"
+        )
+
+    bc4, bc5, bc6 = st.columns([1.5, 1.5, 2])
+    with bc4:
+        sel_reps = st.number_input(
+            "Repetitions per Test Point",
+            min_value=1,
+            max_value=20,
+            value=5,
+            step=1,
+            key="bm_repetitions"
+        )
+    with bc5:
+        sel_seed = st.number_input(
+            "Random Seed (Reproducibility)",
+            min_value=1,
+            max_value=999999,
+            value=42,
+            step=1,
+            key="bm_seed"
+        )
+    with bc6:
+        st.write("")
+        st.write("")
+        run_bm_btn = st.button("Execute Benchmark Suite", type="primary", width="stretch", key="bm_btn_run")
+
+    if run_bm_btn:
+        if not sel_counts:
+            st.warning("Please select at least one router count to benchmark.")
+        elif not sel_algos:
+            st.warning("Please select at least one algorithm to benchmark.")
+        else:
+            with st.spinner("Generating reproducible synthetic topologies and measuring algorithm runtimes..."):
+                suite = run_benchmark_suite(
+                    router_counts=sel_counts,
+                    density=sel_density,
+                    algos=sel_algos,
+                    repetitions=sel_reps,
+                    seed=sel_seed
+                )
+                st.session_state["benchmark_suite"] = suite
+            st.success(f"Benchmark completed successfully! Evaluated {len(suite.get('records', []))} test points across {len(sel_counts)} network scales.")
+
+    suite = st.session_state.get("benchmark_suite")
+    if suite and suite.get("records"):
+        records = suite["records"]
+
+        st.write("")
+        st.markdown("### Measured Algorithm Scaling")
+
+        # Plotly Benchmark Comparison Chart
+        fig_bm = go.Figure()
+        algo_colors = {
+            "BFS": "#2563EB",
+            "DFS": "#7C3AED",
+            "Dijkstra": "#D97706"
+        }
+        algo_symbols = {
+            "BFS": "circle",
+            "DFS": "square",
+            "Dijkstra": "diamond"
+        }
+
+        for algo in sel_algos:
+            algo_recs = [r for r in records if r["algorithm"] == algo]
+            algo_recs.sort(key=lambda x: x["routers"])
+            if algo_recs:
+                x_vals = [r["routers"] for r in algo_recs]
+                y_vals = [r["mean_time_ms"] for r in algo_recs]
+                fig_bm.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=y_vals,
+                    mode="lines+markers",
+                    name=f"{algo} (Mean ms)",
+                    line=dict(color=algo_colors.get(algo, "#0F172A"), width=2.5),
+                    marker=dict(symbol=algo_symbols.get(algo, "circle"), size=8)
+                ))
+
+        fig_bm.update_layout(
+            title="Algorithm Execution Time vs. Network Size (Routers V)",
+            xaxis_title="Number of Routers (V)",
+            yaxis_title="Mean Execution Time (milliseconds)",
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#F8FAFC",
+            height=400,
+            margin=dict(l=50, r=30, t=50, b=50),
+            hovermode="x unified",
+            xaxis=dict(gridcolor="#E2E8F0"),
+            yaxis=dict(gridcolor="#E2E8F0")
+        )
+        render_plotly(fig_bm, key="bm_chart")
+
+        # Benchmark Metrics Table
+        st.write("")
+        st.markdown("### Benchmark Experimental Data")
+        table_rows = []
+        for r in records:
+            table_rows.append({
+                "Routers (V)": str(r.get("routers")),
+                "Edges (E)": str(r.get("edges")),
+                "Algorithm": r.get("algorithm"),
+                "Mean Time (ms)": f"{r.get('mean_time_ms', 0.0):.4f}",
+                "Min Time (ms)": f"{r.get('min_time_ms', 0.0):.4f}",
+                "Max Time (ms)": f"{r.get('max_time_ms', 0.0):.4f}",
+                "Hops": str(r.get("hops", 0)),
+                "Path Cost": f"{r.get('path_cost', 0.0):.1f}",
+                "Visited": str(r.get("visited_count", 0)),
+                "Explored Edges": str(r.get("explored_edges", 0)),
+                "Theoretical Time": r.get("theoretical_time", ""),
+                "Theoretical Space": r.get("theoretical_space", "")
+            })
+        st.dataframe(pd.DataFrame(table_rows), width="stretch", hide_index=True)
+
+        # Technical Notes & Caveats
+        st.write("")
+        st.markdown(
+            """
+            > **Performance & Complexity Notes:**
+            > - **High-Resolution Timer:** Execution times are captured using `time.perf_counter()` over the designated repetitions, isolating the pure graph search logic from UI rendering or serialization.
+            > - **Sub-Millisecond Measurement Noise:** For smaller network sizes ($V < 30$), execution completes in microseconds. Background OS task switching, CPU branch prediction, and memory caching can introduce micro-level noise. Asymptotic complexity ($O(V+E)$ vs $O((V+E)\log V)$) governs behavior as network scale increases.
+            """
+        )
+
+        # Downloads
+        st.write("")
+        bm_csv = export_benchmark_csv(records)
+        bm_json = json.dumps(suite, indent=2)
+
+        bm_dl1, bm_dl2, bm_dl3 = st.columns(3)
+        with bm_dl1:
+            st.download_button(
+                label="Download Benchmark CSV",
+                data=bm_csv,
+                file_name=f"netroute_benchmark_suite_density_{int(sel_density*100)}.csv",
+                mime="text/csv",
+                width="stretch",
+                key="bm_dl_csv"
+            )
+        with bm_dl2:
+            st.download_button(
+                label="Download Benchmark JSON",
+                data=bm_json,
+                file_name=f"netroute_benchmark_suite_density_{int(sel_density*100)}.json",
+                mime="application/json",
+                width="stretch",
+                key="bm_dl_json"
+            )
+        with bm_dl3:
+            bm_png = export_figure_png(fig_bm)
+            if bm_png:
+                st.download_button(
+                    label="Benchmark Chart PNG",
+                    data=bm_png,
+                    file_name=f"netroute_benchmark_chart.png",
+                    mime="image/png",
+                    width="stretch",
+                    key="bm_dl_png"
+                )
+            else:
+                st.caption("PNG export requires Kaleido.")
 
 
 # =============================================================================

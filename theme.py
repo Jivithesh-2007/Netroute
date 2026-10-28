@@ -279,11 +279,28 @@ def render_path_pills(path: List[str]) -> str:
     return f'<div class="path-pill-container">{" ".join(items)}</div>'
 
 
-def render_step_card(step_num: int, operation: str, description: str, color: str = PRIMARY) -> str:
-    """Renders a styled step execution card with operation tag."""
+def render_step_card(
+    step_num: int,
+    operation: str,
+    description: str,
+    color: str = PRIMARY,
+    why: str = "",
+    neighbor_info: str = "",
+    route_info: str = ""
+) -> str:
+    """Renders a styled step execution card with operation tag and explainable event details."""
+    extra_html = ""
+    if why:
+        extra_html += f'<div style="margin-top:6px; font-size:0.86rem; color:#334155; background:#F8FAFC; border-left:3px solid {color}; padding:6px 10px; border-radius:4px;"><b>Action & Why:</b> {why}</div>'
+    if neighbor_info:
+        extra_html += f'<div style="margin-top:4px; font-size:0.80rem; color:#64748B;">{neighbor_info}</div>'
+    if route_info:
+        extra_html += f'<div style="margin-top:4px; font-size:0.80rem; color:#059669;"><b>Current Route Reconstruction:</b> {route_info}</div>'
+
     return f"""
     <div class="step-card" style="border-left-color: {color};">
         <div class="step-card-header" style="color: {color} !important;">STEP {step_num} | {operation}</div>
         <div class="step-card-desc">{description}</div>
+        {extra_html}
     </div>
     """

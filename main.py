@@ -20,10 +20,12 @@ from views import (
     render_topology_studio,
     render_traversal_simulator,
     render_bfs_dfs_comparison,
+    render_network_failure_lab,
     render_data_structures_inspector,
     render_traversal_tree,
     render_routing_table_simulator,
     render_network_analysis,
+    render_benchmark_lab,
     render_simulation_history,
     render_import_export,
     render_settings_help
@@ -66,10 +68,12 @@ NAV_PAGES = [
     "Topology Studio",
     "Traversal Simulator",
     "BFS vs DFS Comparison",
+    "Network Failure Lab",
     "Data Structures Inspector",
     "Traversal Tree",
     "Routing Table Simulator",
     "Network Analysis",
+    "Benchmark Lab",
     "Simulation History",
     "Import / Export",
     "Settings / Help"
@@ -129,7 +133,7 @@ if router_keys:
         st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.caption("NetRoute v2.0 • Simulation-First Engine")
+st.sidebar.caption("NetRoute v3.0 • Advanced Simulation, Resilience & Analytics")
 
 
 # -----------------------------------------------------------------------------
@@ -145,6 +149,8 @@ elif page == "Traversal Simulator":
     render_traversal_simulator(graph)
 elif page == "BFS vs DFS Comparison":
     render_bfs_dfs_comparison(graph)
+elif page == "Network Failure Lab":
+    render_network_failure_lab(graph)
 elif page == "Data Structures Inspector":
     render_data_structures_inspector(graph)
 elif page == "Traversal Tree":
@@ -153,6 +159,8 @@ elif page == "Routing Table Simulator":
     render_routing_table_simulator(graph)
 elif page == "Network Analysis":
     render_network_analysis(graph)
+elif page == "Benchmark Lab":
+    render_benchmark_lab(graph)
 elif page == "Simulation History":
     render_simulation_history(graph)
 elif page == "Import / Export":

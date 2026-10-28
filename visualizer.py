@@ -20,13 +20,26 @@ def render_plotly(fig: go.Figure, key: Optional[str] = None):
     st.plotly_chart(fig, width="stretch", key=key)
 
 
+def export_figure_png(fig: go.Figure, width: int = 1000, height: int = 600, scale: float = 2.0) -> Optional[bytes]:
+    """
+    Exports a Plotly figure to PNG image bytes using Kaleido.
+    Returns bytes on success, or None if Kaleido is unavailable or encounters an error.
+    """
+    try:
+        return fig.to_image(format="png", width=width, height=height, scale=scale)
+    except Exception:
+        return None
+
+
 def build_network_figure(
     graph: Graph,
     active: Dict[str, Any],
     src_id: str,
     dst_id: str,
     height: int = 430,
-    title: Optional[str] = None
+    title: Optional[str] = None,
+    highlight_bridges: Optional[Set[Tuple[str, str]]] = None,
+    highlight_aps: Optional[Set[str]] = None
 ) -> go.Figure:
     """Renders an interactive network graph with real-time traversal and packet indicators."""
     fig = go.Figure()
@@ -53,6 +66,8 @@ def build_network_figure(
     route_nodes = set(active.get("route_nodes", []))
     route_edges = [tuple(sorted(e)) for e in active.get("route_edges", [])]
     packet_node = active.get("packet_node")
+    clean_bridges = {tuple(sorted(e)) for e in (highlight_bridges or set())}
+    clean_aps = set(highlight_aps or set())
 
     # 1. Draw transmission links (Edges)
     for u, v in graph.get_edges():
@@ -75,6 +90,10 @@ def build_network_figure(
             line_color = COLOR_EDGE_ROUTE
             line_width = 4.0
             line_dash = "solid"
+        elif clean_bridges and e in clean_bridges:
+            line_color = "#D97706"
+            line_width = 3.5
+            line_dash = "dash"
         elif e in explored_edges:
             line_color = COLOR_EDGE_EXPLORED
             line_width = 2.4
@@ -96,14 +115,18 @@ def build_network_figure(
         mid_x = (x1 + x2) / 2.0
         mid_y = (y1 + y2) / 2.0
         w_text = str(int(weight) if weight.is_integer() else weight)
+        is_bridge = clean_bridges and e in clean_bridges
+        badge_text = f"<b>{w_text}</b>" if not is_bridge else f"<b>{w_text} ⚡Bridge</b>"
+        badge_bg = "#FEF3C7" if is_bridge else "#FFFFFF"
+        badge_border = "#D97706" if is_bridge else "#CBD5E1"
 
         fig.add_annotation(
             x=mid_x, y=mid_y,
-            text=f"<b>{w_text}</b>",
+            text=badge_text,
             showarrow=False,
-            font=dict(size=10, color="#475569"),
-            bgcolor="#FFFFFF",
-            bordercolor="#CBD5E1",
+            font=dict(size=10, color="#92400E" if is_bridge else "#475569"),
+            bgcolor=badge_bg,
+            bordercolor=badge_border,
             borderwidth=1,
             borderpad=3,
             opacity=0.95
@@ -170,17 +193,25 @@ def build_network_figure(
                 border_c = "#CBD5E1"
                 txt_c = "#64748B"
 
+        if clean_aps and rid in clean_aps:
+            border_c = "#D97706"
+            if fill_c == "#FFFFFF":
+                fill_c = "#FEF3C7"
+                txt_c = "#92400E"
+
         node_colors.append(fill_c)
         border_colors.append(border_c)
         text_colors.append(txt_c)
 
         sub_text = r.name
+        if clean_aps and rid in clean_aps:
+            sub_text += " [AP]"
         if rid == src_id and "(Src)" not in sub_text:
             sub_text += " (Src)"
         elif rid == dst_id and "(Dst)" not in sub_text:
             sub_text += " (Dst)"
 
-        sub_color = "#10B981" if rid == src_id else ("#F59E0B" if rid == dst_id else "#1E293B")
+        sub_color = "#10B981" if rid == src_id else ("#F59E0B" if rid == dst_id else ("#D97706" if (clean_aps and rid in clean_aps) else "#1E293B"))
 
         fig.add_annotation(
             x=r.x, y=r.y - 26,
