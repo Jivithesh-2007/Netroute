@@ -308,22 +308,42 @@ def render_traversal_simulator(graph: Graph):
     cfg1, cfg2, cfg3, cfg4, cfg5, cfg6 = st.columns([1.5, 1.5, 2.0, 1.1, 1.5, 1.0])
     cur_src = st.session_state.get('source_id', router_keys[0])
     cur_dst = st.session_state.get('dest_id', router_keys[-1] if len(router_keys) > 1 else router_keys[0])
-    s_idx = router_keys.index(cur_src) if cur_src in router_keys else 0
-    d_idx = router_keys.index(cur_dst) if cur_dst in router_keys else len(router_keys) - 1
+    if cur_src not in router_keys:
+        cur_src = router_keys[0]
+    if cur_dst not in router_keys:
+        cur_dst = router_keys[-1]
+    st.session_state['source_id'] = cur_src
+    st.session_state['dest_id'] = cur_dst
+
+    def _on_sim_endpoints_changed():
+        n_s = st.session_state.get('sim_sel_src')
+        n_d = st.session_state.get('sim_sel_dst')
+        n_a = st.session_state.get('sim_sel_algo')
+        if n_s in router_keys and n_d in router_keys:
+            st.session_state['source_id'] = n_s
+            st.session_state['dest_id'] = n_d
+            st.session_state['selected_algo'] = n_a
+            st.session_state['sb_src_selector'] = n_s
+            st.session_state['sb_dst_selector'] = n_d
+            st.session_state['cmp_bar_src'] = n_s
+            st.session_state['cmp_bar_dst'] = n_d
+            sim.invalidate_simulation()
+
+    if st.session_state.get('sim_sel_src') != cur_src:
+        st.session_state['sim_sel_src'] = cur_src
+    if st.session_state.get('sim_sel_dst') != cur_dst:
+        st.session_state['sim_sel_dst'] = cur_dst
+    s_idx = router_keys.index(cur_src)
+    d_idx = router_keys.index(cur_dst)
     with cfg1:
-        sel_src = st.selectbox('Source', options=router_keys, index=s_idx, key='sim_sel_src')
+        sel_src = st.selectbox('Source', options=router_keys, index=s_idx, key='sim_sel_src', on_change=_on_sim_endpoints_changed)
     with cfg2:
-        sel_dst = st.selectbox('Destination', options=router_keys, index=d_idx, key='sim_sel_dst')
+        sel_dst = st.selectbox('Destination', options=router_keys, index=d_idx, key='sim_sel_dst', on_change=_on_sim_endpoints_changed)
     with cfg3:
         algo_options = ['BFS (Breadth-First Search)', 'DFS (Depth-First Search)', 'Dijkstra (Weighted Shortest Path)']
         cur_algo = st.session_state.get('selected_algo', algo_options[0])
-        if 'DIJKSTRA' in str(cur_algo).upper():
-            a_idx = 2
-        elif 'DFS' in str(cur_algo).upper():
-            a_idx = 1
-        else:
-            a_idx = 0
-        sel_algo = st.selectbox('Algorithm', options=algo_options, index=a_idx, key='sim_sel_algo')
+        a_idx = 2 if 'DIJKSTRA' in str(cur_algo).upper() else 1 if 'DFS' in str(cur_algo).upper() else 0
+        sel_algo = st.selectbox('Algorithm', options=algo_options, index=a_idx, key='sim_sel_algo', on_change=_on_sim_endpoints_changed)
     with cfg4:
         st.write('')
         st.write('')
@@ -337,17 +357,6 @@ def render_traversal_simulator(graph: Graph):
         st.write('')
         st.write('')
         reset_btn = st.button('Reset', width='stretch', key='sim_btn_reset')
-    prev_src = st.session_state.get('_sim_prev_src', cur_src)
-    prev_dst = st.session_state.get('_sim_prev_dst', cur_dst)
-    prev_algo = st.session_state.get('_sim_prev_algo', cur_algo)
-    if sel_src != prev_src or sel_dst != prev_dst or sel_algo != prev_algo:
-        st.session_state['_sim_prev_src'] = sel_src
-        st.session_state['_sim_prev_dst'] = sel_dst
-        st.session_state['_sim_prev_algo'] = sel_algo
-        st.session_state['source_id'] = sel_src
-        st.session_state['dest_id'] = sel_dst
-        st.session_state['selected_algo'] = sel_algo
-        sim.invalidate_simulation()
     if reset_btn:
         sim.reset_simulation()
         st.rerun()
@@ -371,8 +380,15 @@ def render_traversal_simulator(graph: Graph):
             st.session_state['is_paused'] = False
         st.rerun()
     sim_res = st.session_state.get('sim_res')
+    if not sim_res and sel_src in graph.routers and sel_dst in graph.routers:
+        if graph.routers[sel_src].is_online and graph.routers[sel_dst].is_online:
+            sim_res = sim.execute_routing(graph, sel_algo, sel_src, sel_dst)
+            st.session_state['step_idx'] = 0
+            if sim_autoplay_val:
+                st.session_state['is_playing'] = True
+                st.session_state['is_paused'] = False
     if not sim_res:
-        st.info('Select parameters and click **Run Simulation** to generate the step-by-step traversal trace.')
+        st.info('Select online routers and click **Run Simulation** to generate the step-by-step traversal trace.')
         active_state = sim.get_active_state(graph)
         fig = build_network_figure(graph, active_state, sel_src, sel_dst, height=430)
         render_plotly(fig, key='sim_graph_idle')
@@ -545,13 +561,37 @@ def render_bfs_dfs_comparison(graph: Graph):
         return
     cur_src = st.session_state.get('source_id', router_keys[0])
     cur_dst = st.session_state.get('dest_id', router_keys[-1] if len(router_keys) > 1 else router_keys[0])
-    s_idx = router_keys.index(cur_src) if cur_src in router_keys else 0
-    d_idx = router_keys.index(cur_dst) if cur_dst in router_keys else len(router_keys) - 1
+    if cur_src not in router_keys:
+        cur_src = router_keys[0]
+    if cur_dst not in router_keys:
+        cur_dst = router_keys[-1] if len(router_keys) > 1 else router_keys[0]
+
+    def _on_cmp_endpoints_changed():
+        n_s = st.session_state.get('cmp_bar_src')
+        n_d = st.session_state.get('cmp_bar_dst')
+        if n_s in router_keys and n_d in router_keys:
+            st.session_state['source_id'] = n_s
+            st.session_state['dest_id'] = n_d
+            st.session_state['sb_src_selector'] = n_s
+            st.session_state['sb_dst_selector'] = n_d
+            st.session_state['sim_sel_src'] = n_s
+            st.session_state['sim_sel_dst'] = n_d
+            st.session_state['cmp_res'] = None
+            st.session_state['cmp_step_idx'] = 0
+            st.session_state['cmp_is_playing'] = False
+            st.session_state['cmp_is_paused'] = False
+
+    if st.session_state.get('cmp_bar_src') != cur_src:
+        st.session_state['cmp_bar_src'] = cur_src
+    if st.session_state.get('cmp_bar_dst') != cur_dst:
+        st.session_state['cmp_bar_dst'] = cur_dst
+    s_idx = router_keys.index(cur_src)
+    d_idx = router_keys.index(cur_dst)
     c_bar1, c_bar2, c_bar3, c_bar4, c_bar5 = st.columns([1.8, 1.8, 1.3, 1.8, 1.1])
     with c_bar1:
-        sel_src = st.selectbox('Source Router', options=router_keys, index=s_idx, key='cmp_bar_src')
+        sel_src = st.selectbox('Source Router', options=router_keys, index=s_idx, key='cmp_bar_src', on_change=_on_cmp_endpoints_changed)
     with c_bar2:
-        sel_dst = st.selectbox('Destination Router', options=router_keys, index=d_idx, key='cmp_bar_dst')
+        sel_dst = st.selectbox('Destination Router', options=router_keys, index=d_idx, key='cmp_bar_dst', on_change=_on_cmp_endpoints_changed)
     with c_bar3:
         st.write('')
         st.write('')
@@ -565,22 +605,8 @@ def render_bfs_dfs_comparison(graph: Graph):
         st.write('')
         st.write('')
         reset_both = st.button('Reset Both', width='stretch', key='cmp_btn_reset_both')
-    prev_src = st.session_state.get('_cmp_prev_src', cur_src)
-    prev_dst = st.session_state.get('_cmp_prev_dst', cur_dst)
-    if sel_src != prev_src or sel_dst != prev_dst:
-        st.session_state['_cmp_prev_src'] = sel_src
-        st.session_state['_cmp_prev_dst'] = sel_dst
-        st.session_state['source_id'] = sel_src
-        st.session_state['dest_id'] = sel_dst
-        st.session_state['cmp_res'] = None
-        st.session_state['cmp_step_idx'] = 0
-        st.session_state['cmp_is_playing'] = False
-        st.session_state['cmp_is_paused'] = False
     if reset_both:
-        st.session_state['cmp_res'] = None
-        st.session_state['cmp_step_idx'] = 0
-        st.session_state['cmp_is_playing'] = False
-        st.session_state['cmp_is_paused'] = False
+        sim.cmp_reset()
         st.rerun()
     if run_both:
         if sel_src not in graph.routers or sel_dst not in graph.routers:
@@ -594,16 +620,19 @@ def render_bfs_dfs_comparison(graph: Graph):
             return
         sim.execute_dual_comparison(graph, sel_src, sel_dst)
         st.session_state['cmp_step_idx'] = 0
-        if cmp_autoplay_val:
-            st.session_state['cmp_is_playing'] = True
-            st.session_state['cmp_is_paused'] = False
-        else:
-            st.session_state['cmp_is_playing'] = False
-            st.session_state['cmp_is_paused'] = False
+        st.session_state['cmp_is_playing'] = bool(cmp_autoplay_val)
+        st.session_state['cmp_is_paused'] = False
         st.rerun()
     cmp_res = st.session_state.get('cmp_res')
+    if not cmp_res and sel_src in graph.routers and sel_dst in graph.routers:
+        if graph.routers[sel_src].is_online and graph.routers[sel_dst].is_online:
+            cmp_res = sim.execute_dual_comparison(graph, sel_src, sel_dst)
+            st.session_state['cmp_step_idx'] = 0
+            if cmp_autoplay_val:
+                st.session_state['cmp_is_playing'] = True
+                st.session_state['cmp_is_paused'] = False
     if not cmp_res:
-        st.info('Select parameters and click **Run Both Algorithms** to initiate synchronized, animated comparison.')
+        st.info('Select online routers and click **Run Both Algorithms** to initiate synchronized comparison.')
         idle_visual = sim.get_step_visual_state(graph, None, 0)
         c_idle1, c_idle2 = st.columns(2)
         with c_idle1:

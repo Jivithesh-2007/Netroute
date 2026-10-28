@@ -35,15 +35,29 @@ if router_keys:
         cur_src = router_keys[0]
     if cur_dst not in router_keys:
         cur_dst = router_keys[-1]
+    st.session_state['source_id'] = cur_src
+    st.session_state['dest_id'] = cur_dst
+
+    def _on_sidebar_endpoint_change():
+        n_src = st.session_state.get('sb_src_selector')
+        n_dst = st.session_state.get('sb_dst_selector')
+        if n_src in router_keys and n_dst in router_keys:
+            st.session_state['source_id'] = n_src
+            st.session_state['dest_id'] = n_dst
+            st.session_state['sim_sel_src'] = n_src
+            st.session_state['sim_sel_dst'] = n_dst
+            st.session_state['cmp_bar_src'] = n_src
+            st.session_state['cmp_bar_dst'] = n_dst
+            sim.invalidate_simulation()
+
+    if st.session_state.get('sb_src_selector') != cur_src:
+        st.session_state['sb_src_selector'] = cur_src
+    if st.session_state.get('sb_dst_selector') != cur_dst:
+        st.session_state['sb_dst_selector'] = cur_dst
     s_idx = router_keys.index(cur_src)
     d_idx = router_keys.index(cur_dst)
-    sb_src = st.sidebar.selectbox('Source (Origin)', options=router_keys, index=s_idx, key='sb_src_selector')
-    sb_dst = st.sidebar.selectbox('Destination (Target)', options=router_keys, index=d_idx, key='sb_dst_selector')
-    if sb_src != cur_src or sb_dst != cur_dst:
-        st.session_state['source_id'] = sb_src
-        st.session_state['dest_id'] = sb_dst
-        sim.invalidate_simulation()
-        st.rerun()
+    st.sidebar.selectbox('Source (Origin)', options=router_keys, index=s_idx, key='sb_src_selector', on_change=_on_sidebar_endpoint_change)
+    st.sidebar.selectbox('Destination (Target)', options=router_keys, index=d_idx, key='sb_dst_selector', on_change=_on_sidebar_endpoint_change)
 st.sidebar.markdown('---')
 st.sidebar.caption('NetRoute v3.0 • Advanced Simulation, Resilience & Analytics')
 page = st.session_state.get('nav_page', 'Dashboard')

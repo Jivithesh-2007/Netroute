@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from network import Graph
 
-def generate_simulation_report(graph: Graph, sim_res: Optional[Dict[str, Any]], source: str, destination: str, algo_name: str='BFS', topology_name: str='') -> Dict[str, Any]:
+def generate_simulation_report(graph: Graph, sim_res: Optional[Dict[str, Any]], source: str, destination: str, algo_name: str='BFS', topology_name: str='', **kwargs: Any) -> Dict[str, Any]:
     timestamp = datetime.now(timezone.utc).isoformat()
     src_clean = str(source).strip().upper()
     dst_clean = str(destination).strip().upper()

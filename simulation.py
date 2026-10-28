@@ -46,13 +46,13 @@ def init_session():
     if 'cmp_speed' not in st.session_state:
         st.session_state['cmp_speed'] = 0.6
     if 'cmp_autoplay' not in st.session_state:
-        st.session_state['cmp_autoplay'] = False
+        st.session_state['cmp_autoplay'] = True
     if 'is_paused' not in st.session_state:
         st.session_state['is_paused'] = False
     if 'sim_speed' not in st.session_state:
         st.session_state['sim_speed'] = 0.6
     if 'sim_autoplay' not in st.session_state:
-        st.session_state['sim_autoplay'] = False
+        st.session_state['sim_autoplay'] = True
     if 'simulation_history' not in st.session_state:
         st.session_state['simulation_history'] = []
     g_nodes = list(st.session_state['graph'].routers.keys())
