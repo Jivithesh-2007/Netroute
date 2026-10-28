@@ -1,0 +1,20 @@
+{
+  "directed": false,
+  "name": "Offline Router Scenario",
+  "description": "Bridge router R2 is offline; packets must dynamically bypass via alternative node R4.",
+  "routers": [
+    { "id": "R1", "name": "Source R1", "x": 120.0, "y": 180.0, "is_online": true },
+    { "id": "R2", "name": "Bridge R2 (Offline)", "x": 280.0, "y": 120.0, "is_online": false },
+    { "id": "R3", "name": "Intermediate R3", "x": 440.0, "y": 180.0, "is_online": true },
+    { "id": "R4", "name": "Bypass R4", "x": 280.0, "y": 250.0, "is_online": true },
+    { "id": "R5", "name": "Destination R5", "x": 560.0, "y": 180.0, "is_online": true }
+  ],
+  "edges": [
+    ["R1", "R2", 1.0],
+    ["R2", "R3", 1.0],
+    ["R1", "R4", 1.0],
+    ["R4", "R3", 1.0],
+    ["R3", "R5", 1.0]
+  ],
+  "failed_edges": []
+}

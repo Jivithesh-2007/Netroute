@@ -1,5 +1,7 @@
 {
   "directed": false,
+  "name": "Reference 7-Node WAN",
+  "description": "Standard 7-node reference WAN topology with redundant paths and weighted links.",
   "routers": [
     { "id": "N1", "name": "Server A (Src)", "x": 100.0, "y": 220.0, "is_online": true },
     { "id": "N2", "name": "Router 1", "x": 230.0, "y": 140.0, "is_online": true },
@@ -19,5 +21,6 @@
     ["N4", "N6", 4.0],
     ["N5", "N6", 7.0],
     ["N6", "N7", 1.0]
-  ]
+  ],
+  "failed_edges": []
 }

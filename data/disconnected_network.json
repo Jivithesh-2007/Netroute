@@ -1,0 +1,22 @@
+{
+  "directed": false,
+  "name": "Disconnected LAN",
+  "description": "Two isolated subnets (Subnet A: R1-R3, Subnet B: R4-R6) to test unreachable destinations.",
+  "routers": [
+    { "id": "R1", "name": "Subnet A (R1)", "x": 140.0, "y": 130.0, "is_online": true },
+    { "id": "R2", "name": "Subnet A (R2)", "x": 260.0, "y": 90.0, "is_online": true },
+    { "id": "R3", "name": "Subnet A (R3)", "x": 200.0, "y": 270.0, "is_online": true },
+    { "id": "R4", "name": "Subnet B (R4)", "x": 440.0, "y": 130.0, "is_online": true },
+    { "id": "R5", "name": "Subnet B (R5)", "x": 560.0, "y": 90.0, "is_online": true },
+    { "id": "R6", "name": "Subnet B (R6)", "x": 500.0, "y": 270.0, "is_online": true }
+  ],
+  "edges": [
+    ["R1", "R2", 1.0],
+    ["R2", "R3", 1.0],
+    ["R1", "R3", 1.0],
+    ["R4", "R5", 1.0],
+    ["R5", "R6", 1.0],
+    ["R4", "R6", 1.0]
+  ],
+  "failed_edges": []
+}

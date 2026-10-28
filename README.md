@@ -86,46 +86,154 @@ Developed using **Python**, **Streamlit**, and **Plotly**.
 ```
 Netroute/
 ├── main.py                     # Streamlit application UI, dashboard, Plotly tree & graph engines, and tabs
-├── network.py                  # Router and Graph models, adjacency list/matrix, and generate_routing_table()
-├── algorithms.py               # BFS, DFS, Dijkstra, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree
-├── simulation.py               # Playback engine, packet stepper, history, and simulate_table_forwarding()
+├── network.py                  # Router and Graph models, JSON export/import validation, and generate_routing_table()
+├── topology_registry.py        # Centralized data-driven registry discovering JSON topologies in data/
+├── report.py                   # Dynamic JSON simulation report generation engine adhering to ISO-8601 schema
+├── algorithms.py               # BFS, DFS, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree
+├── simulation.py               # Playback engine, packet stepper, table forwarding simulation, and state invalidation
 ├── theme.py                    # Design system, high-contrast light theme CSS tokens, and card components
-├── tests/                      # Automated unit test suite (81 tests)
+├── pytest.ini                  # Pytest configuration with pythonpath set to project root
+├── data/                       # Validated JSON topology presets
+│   ├── reference_network.json  # Reference 7-Node WAN topology
+│   ├── sample_network.json     # 6-Node Interconnected Mesh network
+│   ├── ring_network.json       # 6-Node Circular Ring topology
+│   ├── disconnected_network.json # Disconnected LAN with two isolated subnets
+│   ├── direct_network.json     # Linear chain network (R1-R2-R3-R4)
+│   ├── multi_route_network.json # Multi-route spine-leaf network
+│   └── offline_router_network.json # Bridge router offline bypass scenario
+├── tests/                      # Automated unit test suite (101 tests, 100% pass)
 │   ├── test_co3_searching_sorting.py   # Tests for linear/binary search & bubble/insertion sort
 │   ├── test_co4_traversal_tree.py      # Tests for traversal tree invariants, root, and acyclic property
 │   ├── test_co5_table_routing.py       # Tests for routing tables and table forwarding simulation
 │   ├── test_bfs.py                     # BFS unweighted shortest path tests
-│   ├── test_dfs.py                     # DFS path validity tests
-│   ├── test_dijkstra.py                # Dijkstra weighted path tests
+│   ├── test_dfs.py                     # DFS path validity & stack mechanics tests
+│   ├── test_bfs_dfs_comparison.py      # BFS vs DFS comparative evaluation engine tests
 │   ├── test_network.py                 # Graph data structure & dynamic editing tests
 │   ├── test_simulation.py              # Simulation state and invalidation tests
-│   ├── test_failure_lab.py             # Network failure and recovery tests
-│   ├── test_comparison.py              # Dual BFS vs DFS comparison tests
-│   ├── test_challenge.py               # DSA challenge mode tests
-│   └── test_history_and_report.py      # History recording & report export tests
+│   ├── test_topology_import_export.py  # JSON export, import, round-trip, & schema validation tests
+│   ├── test_topology_registry.py       # Data-driven topology registry discovery & fallback tests
+│   ├── test_simulation_report.py       # Authoritative JSON simulation report generation tests
+│   └── test_edge_cases.py              # Tests covering 20 comprehensive graph & routing edge cases
 └── README.md                   # Project documentation and faculty demonstration guide
 ```
 
 ---
 
-## 4. Installation and Execution
+## 4. Topology JSON Schema and Import/Export
+
+NetRoute supports full serialization, round-trip export, and safe import of network topologies via standardized JSON:
+
+```json
+{
+  "directed": false,
+  "name": "Reference 7-Node WAN",
+  "description": "Standard 7-node reference WAN topology with redundant paths and weighted links.",
+  "routers": [
+    { "id": "N1", "name": "Server A (Src)", "x": 100.0, "y": 220.0, "is_online": true },
+    { "id": "N2", "name": "Router 1", "x": 230.0, "y": 140.0, "is_online": true },
+    { "id": "N3", "name": "Router 2", "x": 230.0, "y": 300.0, "is_online": true },
+    { "id": "N4", "name": "Router 3", "x": 380.0, "y": 140.0, "is_online": true },
+    { "id": "N5", "name": "Router 4", "x": 380.0, "y": 300.0, "is_online": true },
+    { "id": "N6", "name": "Switch B", "x": 510.0, "y": 220.0, "is_online": true },
+    { "id": "N7", "name": "Server B (Dst)", "x": 630.0, "y": 220.0, "is_online": true }
+  ],
+  "edges": [
+    ["N1", "N2", 4.0],
+    ["N1", "N3", 8.0],
+    ["N2", "N3", 3.0],
+    ["N2", "N4", 10.0],
+    ["N3", "N5", 2.0],
+    ["N4", "N5", 5.0],
+    ["N4", "N6", 4.0],
+    ["N5", "N6", 7.0],
+    ["N6", "N7", 1.0]
+  ],
+  "failed_edges": []
+}
+```
+
+### Schema Invariants & Safety Guarantees:
+- **Router ID Validation:** 1–8 alphanumeric characters. Duplicate router IDs are strictly rejected.
+- **Coordinates:** Numeric, finite coordinates $(x, y)$.
+- **Strict Endpoint Integrity:** All edge endpoints must exist in the vertex set.
+- **No Self-Loops:** Connections from a router to itself are prohibited.
+- **Weights:** Finite, non-negative numeric floats ($\ge 0.0$).
+- **Candidate Graph Isolation:** Validated into a temporary candidate graph first; the active graph is never left in a partially modified state if validation fails.
+
+---
+
+## 5. Dynamic Simulation Execution Report Schema
+
+After executing BFS or DFS, users can download an authoritative JSON execution report capturing the current network state, execution trace, and complexity analysis:
+
+```json
+{
+  "report_type": "NetRoute Simulation Report",
+  "schema_version": "1.0",
+  "generated_at": "2026-10-28T08:35:00.000000+00:00",
+  "topology": {
+    "name": "Reference 7-Node WAN",
+    "router_count": 7,
+    "connection_count": 9,
+    "online_routers_count": 7,
+    "offline_routers_count": 0,
+    "online_routers": ["N1", "N2", "N3", "N4", "N5", "N6", "N7"],
+    "offline_routers": [],
+    "failed_links_count": 0,
+    "failed_edges": [],
+    "routers": [...],
+    "edges": [...]
+  },
+  "simulation": {
+    "algorithm": "BFS (Breadth-First Search)",
+    "source": "N1",
+    "destination": "N7",
+    "status": "success",
+    "route": ["N1", "N2", "N4", "N6", "N7"],
+    "hop_count": 4,
+    "visited_order": ["N1", "N2", "N3", "N4", "N5", "N6", "N7"],
+    "parent_mapping": { "N1": null, "N2": "N1", "N3": "N1", "N4": "N2", "N5": "N3", "N6": "N4", "N7": "N6" },
+    "traversal_steps_count": 16,
+    "traversal_steps": [...],
+    "queue_or_stack_states": [...],
+    "explored_edges": [...],
+    "execution_time_ms": 0.45,
+    "message": "Valid route discovered: N1 -> N2 -> N4 -> N6 -> N7 (4 hops)."
+  },
+  "complexity": {
+    "time": "O(V + E)",
+    "auxiliary_space": "O(V)",
+    "explanation": "BFS explores the network level-by-level using a FIFO queue..."
+  }
+}
+```
+
+---
+
+## 6. Installation and Execution
 
 ### Step 1: Clone or Navigate to Directory
 ```bash
-cd /Users/Jivithesh/Desktop/S3_MP/Netroute
+cd "/Users/jeslinjp/Library/CloudStorage/GoogleDrive-jeslin3379@gmail.com/My Drive/my_project/Netroute"
 ```
 
-### Step 2: Install Dependencies
+### Step 2: Activate Environment & Install Dependencies
 ```bash
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
-*(Dependencies: `streamlit`, `plotly`, `pandas`)*
+*(Dependencies: `streamlit`, `plotly`, `pandas`, `pytest`)*
 
 ### Step 3: Run Automated Test Suite
-Verify that all 81 automated tests pass:
+Run with `pytest`:
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py" -v
+pytest -v
 ```
+Or run with Python's built-in `unittest` runner:
+```bash
+python3 -m unittest discover tests -v
+```
+*(All 101 tests pass 100% with 0 failures).*
 
 ### Step 4: Launch the Streamlit Web Application
 ```bash

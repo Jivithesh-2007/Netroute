@@ -1,5 +1,7 @@
 {
   "directed": false,
+  "name": "Mesh Network",
+  "description": "6-Node interconnected mesh topology with redundant cross-links.",
   "routers": [
     { "id": "R1", "name": "Core Router R1", "x": 120.0, "y": 120.0, "is_online": true },
     { "id": "R2", "name": "Edge Router R2", "x": 320.0, "y": 80.0, "is_online": true },
@@ -15,6 +17,8 @@
     ["R2", "R5", 1.0],
     ["R3", "R6", 1.0],
     ["R4", "R5", 1.0],
-    ["R5", "R6", 1.0]
-  ]
+    ["R5", "R6", 1.0],
+    ["R2", "R4", 1.0]
+  ],
+  "failed_edges": []
 }

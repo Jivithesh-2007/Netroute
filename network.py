@@ -47,7 +47,8 @@ class Graph:
     Undirected Network Graph representation.
     Maintains router objects and adjacency lists for fast neighbor traversal.
     """
-    def __init__(self):
+    def __init__(self, name: str = ""):
+        self.name: str = name
         self.routers: Dict[str, Router] = {}
         self.adjacency: Dict[str, List[str]] = {}
         self.weights: Dict[Tuple[str, str], float] = {}
@@ -497,35 +498,38 @@ class Graph:
         }
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serializes topology to a portable dictionary format."""
+        """Serializes active topology to a portable JSON-compliant dictionary format."""
         return {
+            "directed": False,
+            "name": self.name or "Custom Topology",
             "routers": [r.to_dict() for r in self.routers.values()],
             "edges": [[u, v, self.get_weight(u, v)] for (u, v) in self.get_edges()],
-            "failed_edges": [list(e) for e in self.failed_edges]
+            "failed_edges": [list(e) for e in sorted(self.failed_edges)]
         }
 
     def load_from_dict(self, data: Dict[str, Any]) -> Tuple[bool, str]:
-        """Loads and validates a topology from a dictionary."""
-        if not isinstance(data, dict) or "routers" not in data or "edges" not in data:
-            return False, "Invalid topology format: 'routers' and 'edges' keys required."
+        """
+        Loads and validates a topology from a dictionary.
+        Validates the candidate schema first before mutating self, ensuring no partial mutation on error.
+        """
+        valid, err_msg, cleaned = validate_topology_dict(data)
+        if not valid or cleaned is None:
+            return False, f"Failed to load topology: {err_msg}"
+
         self.clear()
-        for rdata in data["routers"]:
-            if "id" not in rdata:
-                continue
+        self.name = cleaned.get("name", "Active Topology")
+        for rdata in cleaned["routers"]:
             self.add_router(
                 router_id=rdata["id"],
-                name=rdata.get("name", ""),
-                x=rdata.get("x", 200.0),
-                y=rdata.get("y", 200.0),
-                is_online=rdata.get("is_online", True)
+                name=rdata["name"],
+                x=rdata["x"],
+                y=rdata["y"],
+                is_online=rdata["is_online"]
             )
-        for edge in data["edges"]:
-            if len(edge) >= 2:
-                w = float(edge[2]) if len(edge) >= 3 else 1.0
-                self.add_connection(edge[0], edge[1], weight=w)
-        for fe in data.get("failed_edges", []):
-            if len(fe) >= 2:
-                self.failed_edges.add(tuple(sorted((str(fe[0]), str(fe[1])))))
+        for edge in cleaned["edges"]:
+            self.add_connection(edge[0], edge[1], weight=edge[2])
+        for fe in cleaned["failed_edges"]:
+            self.failed_edges.add(tuple(sorted((str(fe[0]), str(fe[1])))))
         return True, f"Loaded {len(self.routers)} routers and {len(self.get_edges())} connections."
 
 
@@ -539,3 +543,158 @@ def validate_router_id(router_id: str) -> Tuple[bool, str]:
     if not rid.isalnum():
         return False, "Router ID must be alphanumeric (e.g., R1, GW2)."
     return True, rid
+
+
+def validate_topology_dict(data: Any) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """
+    Validates topology dictionary against the strict NetRoute JSON schema.
+    Verifies:
+    - Overall structure (dict with 'routers' and 'edges' lists)
+    - Router ID format and uniqueness (reject duplicate IDs)
+    - Router coordinates (finite numeric values)
+    - Router online/offline status (boolean)
+    - Connection endpoints (both routers must exist in vertex set)
+    - Prohibition of self-loops (u == v)
+    - Prohibition of duplicate connections
+    - Connection weights (finite non-negative numeric floats)
+    - Failed-link status (endpoints must exist and belong to valid edges)
+
+    Returns (is_valid, message, cleaned_data_or_None).
+    """
+    if not isinstance(data, dict):
+        return False, "Topology data must be a JSON object (dictionary).", None
+
+    if "routers" not in data or not isinstance(data["routers"], list):
+        return False, "Topology schema violation: missing or invalid 'routers' array.", None
+
+    if "edges" not in data or not isinstance(data["edges"], list):
+        return False, "Topology schema violation: missing or invalid 'edges' array.", None
+
+    seen_ids: Set[str] = set()
+    cleaned_routers: List[Dict[str, Any]] = []
+
+    for idx, rdata in enumerate(data["routers"]):
+        if not isinstance(rdata, dict):
+            return False, f"Router entry #{idx + 1} must be an object.", None
+
+        raw_id = rdata.get("id")
+        if raw_id is None or not str(raw_id).strip():
+            return False, f"Router entry #{idx + 1} is missing required 'id' field.", None
+
+        valid_id, rid_clean = validate_router_id(str(raw_id))
+        if not valid_id:
+            return False, f"Router entry #{idx + 1} has invalid ID '{raw_id}': {rid_clean}", None
+
+        if rid_clean in seen_ids:
+            return False, f"Duplicate router ID '{rid_clean}' detected in topology.", None
+
+        seen_ids.add(rid_clean)
+
+        raw_name = rdata.get("name", "")
+        router_name = str(raw_name).strip() if raw_name else f"Router {rid_clean}"
+
+        try:
+            x_val = float(rdata.get("x", 200.0))
+            y_val = float(rdata.get("y", 200.0))
+            if not math.isfinite(x_val) or not math.isfinite(y_val):
+                raise ValueError("Non-finite coordinates")
+        except (ValueError, TypeError):
+            return False, f"Router '{rid_clean}' has invalid coordinates (must be finite numbers).", None
+
+        is_online = bool(rdata.get("is_online", True))
+
+        cleaned_routers.append({
+            "id": rid_clean,
+            "name": router_name,
+            "x": round(x_val, 1),
+            "y": round(y_val, 1),
+            "is_online": is_online
+        })
+
+    seen_edges: Set[Tuple[str, str]] = set()
+    cleaned_edges: List[List[Any]] = []
+
+    for idx, edge in enumerate(data["edges"]):
+        if not isinstance(edge, (list, tuple)) or len(edge) < 2:
+            return False, f"Connection #{idx + 1} must be an array of at least 2 router IDs [u, v].", None
+
+        u = str(edge[0]).strip().upper()
+        v = str(edge[1]).strip().upper()
+
+        if u not in seen_ids or v not in seen_ids:
+            missing = u if u not in seen_ids else v
+            return False, f"Connection ({u} <-> {v}) references undefined router ID '{missing}'.", None
+
+        if u == v:
+            return False, f"Unsupported self-link detected: connection from '{u}' to itself is prohibited.", None
+
+        pair = tuple(sorted((u, v)))
+        if pair in seen_edges:
+            return False, f"Duplicate connection detected between '{u}' and '{v}'.", None
+
+        seen_edges.add(pair)
+
+        raw_weight = edge[2] if len(edge) >= 3 else 1.0
+        try:
+            weight = float(raw_weight)
+            if not math.isfinite(weight) or weight < 0.0:
+                raise ValueError("Invalid weight value")
+        except (ValueError, TypeError):
+            return False, f"Connection ({u} <-> {v}) has invalid weight '{raw_weight}'. Weight must be a non-negative finite number.", None
+
+        cleaned_edges.append([pair[0], pair[1], round(weight, 2)])
+
+    cleaned_failed: List[List[str]] = []
+    for fe in data.get("failed_edges", []):
+        if isinstance(fe, (list, tuple)) and len(fe) >= 2:
+            fu = str(fe[0]).strip().upper()
+            fv = str(fe[1]).strip().upper()
+            fpair = tuple(sorted((fu, fv)))
+            if fpair in seen_edges and fpair not in [tuple(e) for e in cleaned_failed]:
+                cleaned_failed.append([fpair[0], fpair[1]])
+
+    cleaned: Dict[str, Any] = {
+        "directed": False,
+        "name": str(data.get("name", "Custom Topology")).strip(),
+        "description": str(data.get("description", "")).strip(),
+        "routers": cleaned_routers,
+        "edges": cleaned_edges,
+        "failed_edges": cleaned_failed
+    }
+    return True, "Valid topology schema.", cleaned
+
+
+def export_topology_json(graph: Graph, name: str = "") -> str:
+    """Serializes the active Graph into a formatted JSON string."""
+    data = graph.to_dict()
+    if name:
+        data["name"] = name.strip()
+    return json.dumps(data, indent=2)
+
+
+def import_topology_json(json_str: str) -> Tuple[bool, str, Optional[Graph]]:
+    """
+    Safely parses and validates a JSON string, constructing a candidate Graph without mutating existing state.
+    Returns (success, message, candidate_graph_or_None).
+    """
+    if not json_str or not json_str.strip():
+        return False, "Uploaded file content is empty.", None
+
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        return False, f"Invalid JSON syntax: {e.msg} (Line {e.lineno}, Col {e.colno}).", None
+    except Exception as e:
+        return False, f"Failed to parse JSON file: {str(e)}", None
+
+    valid, err_msg, cleaned = validate_topology_dict(data)
+    if not valid or cleaned is None:
+        return False, f"Schema validation error: {err_msg}", None
+
+    candidate = Graph()
+    ok, load_msg = candidate.load_from_dict(cleaned)
+    if not ok:
+        return False, f"Candidate graph construction error: {load_msg}", None
+
+    return True, f"Topology successfully imported: {len(candidate.routers)} routers, {len(candidate.get_edges())} connections.", candidate
+

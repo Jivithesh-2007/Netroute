@@ -17,7 +17,9 @@ from theme import (
     CUSTOM_CSS, render_path_pills, render_step_card,
     PRIMARY, PRIMARY_DARK, CYAN, PURPLE, SUCCESS, WARNING, ERROR, TEXT_MAIN, TEXT_MUTED, BORDER
 )
-from network import Graph, validate_router_id
+from network import Graph, validate_router_id, export_topology_json, import_topology_json
+from topology_registry import get_topology_registry
+from report import generate_simulation_report, export_simulation_report_json
 from algorithms import (
     bfs, dfs, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree,
     compare_bfs_dfs
@@ -590,40 +592,104 @@ st.sidebar.markdown("---")
 
 # Section 1: Network Topology Selector
 st.sidebar.subheader("Network Topology")
-preset_options = {
-    "reference": "Reference 7-Node WAN",
-    "ring": "Ring Network",
-    "mesh": "Mesh Network",
-    "disconnected": "Disconnected LAN"
-}
+registry = get_topology_registry()
+preset_options = registry.get_preset_options()
+if not preset_options:
+    preset_options = {"reference": "Reference 7-Node WAN"}
 
 current_preset = st.session_state.get("selected_preset", "reference")
 if current_preset not in preset_options:
-    current_preset = "reference"
+    if current_preset == "custom":
+        preset_options["custom"] = "Custom / Imported Topology"
+    else:
+        current_preset = list(preset_options.keys())[0]
 
-selected_preset_key = st.sidebar.selectbox(
-    "Select Topology Preset",
-    options=list(preset_options.keys()),
-    format_func=lambda k: preset_options[k],
-    index=list(preset_options.keys()).index(current_preset),
-    key="topology_selectbox"
-)
+col_preset_sel, col_preset_rst = st.sidebar.columns([3, 1])
+with col_preset_sel:
+    selected_preset_key = st.selectbox(
+        "Select Topology Preset",
+        options=list(preset_options.keys()),
+        format_func=lambda k: preset_options[k],
+        index=list(preset_options.keys()).index(current_preset) if current_preset in preset_options else 0,
+        key="topology_selectbox"
+    )
+with col_preset_rst:
+    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+    if st.button("Reset", icon=":material/restart_alt:", help="Restore original preset topology", key="sb_btn_restore_preset", use_container_width=True):
+        if selected_preset_key != "custom":
+            st.session_state["selected_preset"] = selected_preset_key
+            st.session_state["graph"] = registry.load_graph(selected_preset_key) or Graph.from_preset(selected_preset_key)
+            graph = st.session_state["graph"]
+            g_nodes = sorted(list(graph.routers.keys()))
+            st.session_state["source_id"] = g_nodes[0] if g_nodes else "N1"
+            st.session_state["dest_id"] = g_nodes[-1] if g_nodes else "N7"
+            for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+                st.session_state.pop(state_key, None)
+            sim.invalidate_simulation()
+            st.rerun()
 
 # Handle Topology Change: load real graph data, reset all old results
-if selected_preset_key != st.session_state.get("selected_preset"):
+if selected_preset_key != st.session_state.get("selected_preset") and selected_preset_key != "custom":
     st.session_state["selected_preset"] = selected_preset_key
-    st.session_state["graph"] = Graph.from_preset(selected_preset_key)
+    st.session_state["graph"] = registry.load_graph(selected_preset_key) or Graph.from_preset(selected_preset_key)
     graph = st.session_state["graph"]
 
     g_nodes = sorted(list(graph.routers.keys()))
     st.session_state["source_id"] = g_nodes[0] if g_nodes else "N1"
     st.session_state["dest_id"] = g_nodes[-1] if g_nodes else "N7"
+    for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+        st.session_state.pop(state_key, None)
 
     sim.invalidate_simulation()
     st.rerun()
 
 graph = st.session_state["graph"]
 router_keys = sorted(list(graph.routers.keys()))
+
+# Topology JSON Import / Export in Sidebar
+with st.sidebar.expander("Topology Import / Export", icon=":material/swap_vert:", expanded=False):
+    st.caption("Export active graph state to JSON or upload a custom JSON network.")
+    active_topo_label = preset_options.get(st.session_state.get("selected_preset", "custom"), getattr(graph, "name", "Custom Topology"))
+    exported_json_str = export_topology_json(graph, name=active_topo_label)
+    st.download_button(
+        label="Export Topology (JSON)",
+        data=exported_json_str,
+        file_name=f"netroute_topology_{st.session_state.get('selected_preset', 'custom')}.json",
+        mime="application/json",
+        icon=":material/download:",
+        use_container_width=True,
+        key="sb_export_btn"
+    )
+
+    uploaded_file = st.file_uploader(
+        "Import Topology JSON",
+        type=["json"],
+        key="sb_topo_uploader",
+        help="Upload a valid JSON file containing routers and edges"
+    )
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.getvalue()
+        upload_token = f"upload_{uploaded_file.name}_{len(file_bytes)}"
+        if st.session_state.get("last_uploaded_token") != upload_token:
+            try:
+                content = file_bytes.decode("utf-8")
+                ok, msg, candidate_graph = import_topology_json(content)
+                if ok and candidate_graph is not None:
+                    st.session_state["last_uploaded_token"] = upload_token
+                    st.session_state["graph"] = candidate_graph
+                    st.session_state["selected_preset"] = "custom"
+                    cand_nodes = sorted(list(candidate_graph.routers.keys()))
+                    st.session_state["source_id"] = cand_nodes[0] if cand_nodes else "N1"
+                    st.session_state["dest_id"] = cand_nodes[-1] if cand_nodes else "N7"
+                    for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+                        st.session_state.pop(state_key, None)
+                    sim.invalidate_simulation()
+                    st.sidebar.success(msg)
+                    st.rerun()
+                else:
+                    st.sidebar.error(msg)
+            except Exception as e:
+                st.sidebar.error(f"Failed to read JSON: {str(e)}")
 
 # Section 2: Routing Configuration
 st.sidebar.markdown("---")
@@ -865,6 +931,39 @@ with tab_routing:
 
             st.markdown(render_step_card(step_num, f"{op} — {struct_display}", desc), unsafe_allow_html=True)
 
+        # Dynamic Simulation Report Download
+        st.write("")
+        st.markdown("##### Simulation Execution Report")
+        rep_col1, rep_col2 = st.columns([1.5, 2.5])
+        with rep_col1:
+            active_preset_name = preset_options.get(st.session_state.get("selected_preset", "custom"), getattr(graph, "name", "Active Topology"))
+            report_data = generate_simulation_report(
+                graph=graph,
+                sim_res=sim_res,
+                source=st.session_state["source_id"],
+                destination=st.session_state["dest_id"],
+                algo_name=st.session_state.get("selected_algo", "BFS"),
+                topology_name=active_preset_name
+            )
+            report_json_str = export_simulation_report_json(report_data)
+            algo_code = "bfs" if "BFS" in st.session_state.get("selected_algo", "BFS") else "dfs"
+            report_filename = f"netroute_report_{algo_code}_{st.session_state['source_id']}_to_{st.session_state['dest_id']}.json"
+
+            st.download_button(
+                label="Download Simulation Report (JSON)",
+                data=report_json_str,
+                file_name=report_filename,
+                mime="application/json",
+                icon=":material/description:",
+                use_container_width=True,
+                key="btn_download_sim_report"
+            )
+        with rep_col2:
+            st.caption(f"Authoritative JSON report recording topology state, {st.session_state.get('selected_algo')} execution steps, and complexity.")
+
+        with st.expander("Inspect Simulation Report JSON", icon=":material/data_object:", expanded=False):
+            st.json(report_data)
+
     # Dynamic Network Topology Management (Add/Delete Nodes & Links, Hardware Faults)
     st.write("")
     with st.expander("Dynamic Network Topology Editor (Add / Delete Routers & Links)", icon=":material/account_tree:", expanded=False):
@@ -1030,12 +1129,53 @@ with tab_routing:
             with lay_c2:
                 if st.button("Restore Preset", icon=":material/restore:", use_container_width=True, key="te_btn_restore_preset"):
                     curr_p = st.session_state.get("selected_preset", "reference")
-                    st.session_state["graph"] = Graph.from_preset(curr_p)
+                    st.session_state["graph"] = registry.load_graph(curr_p) or Graph.from_preset(curr_p)
                     for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
                         st.session_state.pop(state_key, None)
                     sim.invalidate_simulation()
                     st.success(f"Restored original '{curr_p}' topology.")
                     st.rerun()
+
+            st.markdown("---")
+            st.markdown("**Topology JSON Import & Export**")
+            te_exp_c1, te_exp_c2 = st.columns(2)
+            with te_exp_c1:
+                cur_topo_name = preset_options.get(st.session_state.get("selected_preset", "custom"), getattr(graph, "name", "Custom Topology"))
+                te_exp_json = export_topology_json(graph, name=cur_topo_name)
+                st.download_button(
+                    label="Export Topology (JSON)",
+                    data=te_exp_json,
+                    file_name=f"netroute_topology_{st.session_state.get('selected_preset', 'custom')}.json",
+                    mime="application/json",
+                    icon=":material/download:",
+                    use_container_width=True,
+                    key="te_btn_export_json"
+                )
+            with te_exp_c2:
+                te_up_file = st.file_uploader("Upload JSON File", type=["json"], key="te_topo_uploader", label_visibility="collapsed")
+                if te_up_file is not None:
+                    te_bytes = te_up_file.getvalue()
+                    te_token = f"te_up_{te_up_file.name}_{len(te_bytes)}"
+                    if st.session_state.get("te_last_upload_token") != te_token:
+                        try:
+                            te_content = te_bytes.decode("utf-8")
+                            te_ok, te_msg, te_cand = import_topology_json(te_content)
+                            if te_ok and te_cand is not None:
+                                st.session_state["te_last_upload_token"] = te_token
+                                st.session_state["graph"] = te_cand
+                                st.session_state["selected_preset"] = "custom"
+                                cand_nodes = sorted(list(te_cand.routers.keys()))
+                                st.session_state["source_id"] = cand_nodes[0] if cand_nodes else "N1"
+                                st.session_state["dest_id"] = cand_nodes[-1] if cand_nodes else "N7"
+                                for state_key in ["src_select", "dst_select", "inspect_router_select", "fwd_src_select", "fwd_dst_select", "sb_del_r_select", "te_del_target"]:
+                                    st.session_state.pop(state_key, None)
+                                sim.invalidate_simulation()
+                                st.success(te_msg)
+                                st.rerun()
+                            else:
+                                st.error(te_msg)
+                        except Exception as e:
+                            st.error(f"Failed to parse JSON file: {str(e)}")
 
 
 # =============================================================

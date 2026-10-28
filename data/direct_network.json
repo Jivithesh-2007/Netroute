@@ -1,0 +1,17 @@
+{
+  "directed": false,
+  "name": "Linear Chain Network",
+  "description": "Simple 4-router direct chain (R1-R2-R3-R4) where BFS and DFS converge on identical paths.",
+  "routers": [
+    { "id": "R1", "name": "Router R1", "x": 120.0, "y": 200.0, "is_online": true },
+    { "id": "R2", "name": "Router R2", "x": 260.0, "y": 200.0, "is_online": true },
+    { "id": "R3", "name": "Router R3", "x": 400.0, "y": 200.0, "is_online": true },
+    { "id": "R4", "name": "Router R4", "x": 540.0, "y": 200.0, "is_online": true }
+  ],
+  "edges": [
+    ["R1", "R2", 1.0],
+    ["R2", "R3", 1.0],
+    ["R3", "R4", 1.0]
+  ],
+  "failed_edges": []
+}

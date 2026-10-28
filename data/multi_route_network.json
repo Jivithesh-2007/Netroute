@@ -1,0 +1,24 @@
+{
+  "directed": false,
+  "name": "Multi-Route Spine-Leaf",
+  "description": "Multi-path network topology with an optimal 3-hop path vs. a 4-hop alternative path.",
+  "routers": [
+    { "id": "R1", "name": "Ingress R1", "x": 100.0, "y": 180.0, "is_online": true },
+    { "id": "R2", "name": "Spine R2", "x": 260.0, "y": 90.0, "is_online": true },
+    { "id": "R3", "name": "Spine R3", "x": 420.0, "y": 90.0, "is_online": true },
+    { "id": "R4", "name": "Leaf R4", "x": 220.0, "y": 270.0, "is_online": true },
+    { "id": "R5", "name": "Leaf R5", "x": 340.0, "y": 270.0, "is_online": true },
+    { "id": "R6", "name": "Leaf R6", "x": 460.0, "y": 270.0, "is_online": true },
+    { "id": "R7", "name": "Egress R7", "x": 580.0, "y": 180.0, "is_online": true }
+  ],
+  "edges": [
+    ["R1", "R2", 1.0],
+    ["R2", "R3", 1.0],
+    ["R3", "R7", 1.0],
+    ["R1", "R4", 1.0],
+    ["R4", "R5", 1.0],
+    ["R5", "R6", 1.0],
+    ["R6", "R7", 1.0]
+  ],
+  "failed_edges": []
+}

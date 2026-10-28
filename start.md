@@ -12,9 +12,10 @@ source .venv/bin/activate
 *(Your terminal prompt will display (.venv) on the left).*
 
 ### 3. (Optional) Run the Automated Test Suite
-Verify that all 56 algorithms and simulation tests pass:
+Verify that all 101 unit and integration tests pass:
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py" -v
+pytest -v
+# or: python3 -m unittest discover tests -v
 ```
 
 ### 4. Launch the Streamlit Web Application

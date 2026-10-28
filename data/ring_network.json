@@ -1,0 +1,22 @@
+{
+  "directed": false,
+  "name": "Ring Network",
+  "description": "6-Node circular ring network topology demonstrating cyclic traversal and alternative paths.",
+  "routers": [
+    { "id": "R1", "name": "Node R1", "x": 360.0, "y": 70.0, "is_online": true },
+    { "id": "R2", "name": "Node R2", "x": 481.2, "y": 140.0, "is_online": true },
+    { "id": "R3", "name": "Node R3", "x": 481.2, "y": 280.0, "is_online": true },
+    { "id": "R4", "name": "Node R4", "x": 360.0, "y": 350.0, "is_online": true },
+    { "id": "R5", "name": "Node R5", "x": 238.8, "y": 280.0, "is_online": true },
+    { "id": "R6", "name": "Node R6", "x": 238.8, "y": 140.0, "is_online": true }
+  ],
+  "edges": [
+    ["R1", "R2", 1.0],
+    ["R2", "R3", 1.0],
+    ["R3", "R4", 1.0],
+    ["R4", "R5", 1.0],
+    ["R5", "R6", 1.0],
+    ["R6", "R1", 1.0]
+  ],
+  "failed_edges": []
+}
