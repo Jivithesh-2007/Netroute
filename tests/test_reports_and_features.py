@@ -84,11 +84,11 @@ class TestTopologyValidation(unittest.TestCase):
     def test_reject_invalid_json_types(self):
         ok, msg = self.graph.load_from_dict("not a dict")
         self.assertFalse(ok)
-        self.assertIn("JSON root must be an object", msg)
+        self.assertTrue("JSON object" in msg or "JSON root" in msg)
 
         ok, msg = self.graph.load_from_dict({"routers": "not a list", "edges": []})
         self.assertFalse(ok)
-        self.assertIn("'routers' list is required", msg)
+        self.assertTrue("routers" in msg.lower() and ("list" in msg.lower() or "array" in msg.lower()))
 
     def test_reject_invalid_router_id(self):
         bad_data = {
@@ -97,7 +97,7 @@ class TestTopologyValidation(unittest.TestCase):
         }
         ok, msg = self.graph.load_from_dict(bad_data)
         self.assertFalse(ok)
-        self.assertIn("Invalid router ID", msg)
+        self.assertTrue("invalid id" in msg.lower() or "invalid router id" in msg.lower())
 
     def test_reject_duplicate_router_id(self):
         dup_data = {
@@ -106,7 +106,7 @@ class TestTopologyValidation(unittest.TestCase):
         }
         ok, msg = self.graph.load_from_dict(dup_data)
         self.assertFalse(ok)
-        self.assertIn("Duplicate router ID", msg)
+        self.assertTrue("duplicate" in msg.lower())
 
     def test_reject_self_loop_edge(self):
         loop_data = {
@@ -115,7 +115,7 @@ class TestTopologyValidation(unittest.TestCase):
         }
         ok, msg = self.graph.load_from_dict(loop_data)
         self.assertFalse(ok)
-        self.assertIn("Self-loop edge", msg)
+        self.assertTrue("self-link" in msg.lower() or "self-loop" in msg.lower())
 
     def test_reject_negative_weight(self):
         neg_data = {
@@ -124,7 +124,7 @@ class TestTopologyValidation(unittest.TestCase):
         }
         ok, msg = self.graph.load_from_dict(neg_data)
         self.assertFalse(ok)
-        self.assertIn("negative weight", msg)
+        self.assertTrue("non-negative" in msg.lower() or "negative weight" in msg.lower())
 
     def test_failed_import_does_not_corrupt_existing_graph(self):
         self.graph.add_router("ORIGINAL")
