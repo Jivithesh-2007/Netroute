@@ -67,14 +67,11 @@ NetRoute v3 features a clean sidebar navigation system with 13 specialized secti
     - Pure algorithmic execution runtime measurement using `time.perf_counter()` over configurable repetitions, strictly excluding UI and Plotly rendering overhead.
     - Plotly scaling chart comparing mean execution times across network scales.
     - Export benchmark dataset as CSV and JSON.
-11. **Simulation History:** Session log of all executed single traversals and dual comparisons:
-    - Summary table with timestamps, endpoints, algorithms, hop counts, and step counts.
-    - Historical run inspector with full JSON preview and one-click report download.
-12. **Import / Export:** Robust data interchange:
+11. **Import & Simulation:** Data interchange and execution audit:
+    - Session log of executed single traversals and dual comparisons with full JSON inspection and one-click report download.
     - Export active topology as JSON preserving router coordinates, weights, and failure flags.
     - Import topology JSON with transactional schema validation (rejection of duplicate IDs, self-loops, negative weights, and missing endpoints without corrupting the active graph).
     - Download latest single simulation and dual comparison JSON reports.
-13. **Settings / Help:** User guide, theoretical algorithm foundations, time and space complexity matrix, and application state factory reset.
 
 ---
 

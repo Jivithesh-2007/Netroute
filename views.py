@@ -73,23 +73,11 @@ def render_dashboard(graph: Graph):
     fig = build_network_figure(graph, active_state, src_id, dst_id, height=430)
     render_plotly(fig, key='dashboard_graph')
     st.markdown('### Quick Actions')
-    qa1, qa2, qa3, qa4 = st.columns(4)
-    with qa1:
-        if st.button('Topology Studio', width='stretch', key='dash_btn_topo'):
-            st.session_state['nav_page'] = 'Topology Studio'
-            st.rerun()
-    with qa2:
-        if st.button('Traversal Simulator', width='stretch', key='dash_btn_sim', type='primary'):
-            st.session_state['nav_page'] = 'Traversal Simulator'
-            st.rerun()
-    with qa3:
-        if st.button('BFS vs DFS Comparison', width='stretch', key='dash_btn_cmp'):
-            st.session_state['nav_page'] = 'BFS vs DFS Comparison'
-            st.rerun()
-    with qa4:
-        if st.button('Routing Table Simulator', width='stretch', key='dash_btn_rt'):
-            st.session_state['nav_page'] = 'Routing Table Simulator'
-            st.rerun()
+    for col, (label, target, is_p) in zip(st.columns(4), [('Topology Studio', 'Topology Studio', False), ('Traversal Simulator', 'Traversal Simulator', True), ('BFS vs DFS Comparison', 'BFS vs DFS Comparison', False), ('Routing Table Simulator', 'Routing Table Simulator', False)]):
+        with col:
+            if st.button(label, width='stretch', key=f'dash_btn_{target}', type='primary' if is_p else 'secondary'):
+                st.session_state['nav_page'] = target
+                st.rerun()
     st.write('')
     t_col1, t_col2 = st.columns(2)
     with t_col1:
@@ -1319,50 +1307,46 @@ def render_benchmark_lab(graph: Graph):
             else:
                 st.caption('PNG export requires Kaleido.')
 
-def render_simulation_history(graph: Graph):
-    st.markdown('## Simulation History')
-    st.markdown('*Session record of all executed routing simulations, dual comparisons, and downloadable run reports.*')
-    history = st.session_state.get('simulation_history', [])
-    h_col1, h_col2 = st.columns([3, 1])
-    with h_col2:
-        if st.button('Clear History', width='stretch', icon=':material/delete_sweep:', key='hist_clear_btn'):
-            sim.clear_history()
-            st.rerun()
-    if not history:
-        st.info('No completed simulations recorded in this session yet. Run a simulation in the Traversal Simulator or Comparison views to record history.')
-        return
-    table_rows = []
-    for run in history:
-        table_rows.append({'ID': run.get('id'), 'Timestamp': run.get('timestamp'), 'Type': run.get('type'), 'Algorithm': run.get('algorithm'), 'Route': f"{run.get('source')} -> {run.get('destination')}", 'Status': 'SUCCESS' if run.get('success') else 'FAILED', 'Hops': run.get('hops', 0), 'Steps': run.get('steps_count', 0), 'Time (ms)': run.get('execution_time_ms', 0.0)})
-    st.dataframe(pd.DataFrame(table_rows), width='stretch', hide_index=True)
-    st.write('')
-    st.markdown('### Inspect Historical Run')
-    run_ids = [r['id'] for r in history]
-    sel_run_id = st.selectbox('Select Run ID to Inspect', options=run_ids, key='hist_run_select')
-    selected_record = next((r for r in history if r['id'] == sel_run_id), None)
-    if selected_record:
-        st.json(selected_record)
-        report_data = selected_record.get('report')
-        if report_data:
-            st.download_button(label=f'Download JSON Report for {sel_run_id}', data=json.dumps(report_data, indent=2), file_name=f'netroute_report_{sel_run_id}.json', mime='application/json', width='stretch', key=f'hist_dl_{sel_run_id}')
-
-def render_import_export(graph: Graph):
-    st.markdown('## Import / Export')
-    st.markdown('*Export the current network topology as JSON, import external network configurations, and download simulation reports.*')
-    tab_exp_topo, tab_imp_topo, tab_exp_reports = st.tabs(['Export Topology', 'Import Topology', 'Export Simulation Reports'])
-    with tab_exp_topo:
-        st.markdown('### Export Active Topology')
-        st.caption('Serializes all router objects, coordinates, availability states, connections, weights, and severed link states.')
-        topo_dict = graph.to_dict()
-        topo_json = json.dumps(topo_dict, indent=2)
-        preset_name = st.session_state.get('selected_preset', 'custom')
-        st.download_button(label='Download Topology JSON File', data=topo_json, file_name=f'netroute_topology_{preset_name}.json', mime='application/json', type='primary', width='stretch', key='ie_btn_download_topo')
+def render_import_simulation(graph: Graph):
+    st.markdown('## Import & Simulation')
+    st.markdown('*Manage topology data exchange, import network configurations, and inspect simulation history.*')
+    tab_hist, tab_imp, tab_exp = st.tabs(['Simulation History & Reports', 'Import Topology', 'Export Topology'])
+    with tab_hist:
+        history = st.session_state.get('simulation_history', [])
+        h_col1, h_col2 = st.columns([3, 1])
+        with h_col2:
+            if st.button('Clear History', width='stretch', icon=':material/delete_sweep:', key='hist_clear_btn'):
+                sim.clear_history()
+                st.rerun()
+        if not history:
+            st.info('No completed simulations recorded in this session yet.')
+        else:
+            table_rows = [{'ID': r.get('id'), 'Timestamp': r.get('timestamp'), 'Type': r.get('type'), 'Algorithm': r.get('algorithm'), 'Route': f"{r.get('source')} -> {r.get('destination')}", 'Status': 'SUCCESS' if r.get('success') else 'FAILED', 'Hops': r.get('hops', 0), 'Steps': r.get('steps_count', 0), 'Time (ms)': r.get('execution_time_ms', 0.0)} for r in history]
+            st.dataframe(pd.DataFrame(table_rows), width='stretch', hide_index=True)
+            sel_run_id = st.selectbox('Select Run ID to Inspect', options=[r['id'] for r in history], key='hist_run_select')
+            rec = next((r for r in history if r['id'] == sel_run_id), None)
+            if rec:
+                st.json(rec)
+                if rec.get('report'):
+                    st.download_button(label=f'Download JSON Report for {sel_run_id}', data=json.dumps(rec['report'], indent=2), file_name=f'netroute_report_{sel_run_id}.json', mime='application/json', width='stretch', key=f'hist_dl_{sel_run_id}')
         st.write('')
-        st.markdown('##### Preview Serialized JSON')
-        st.code(topo_json, language='json')
-    with tab_imp_topo:
+        st.markdown('##### Latest Session Reports')
+        sim_res = st.session_state.get('sim_res')
+        cmp_res = st.session_state.get('cmp_res')
+        src_id, dst_id = st.session_state.get('source_id', 'N1'), st.session_state.get('dest_id', 'N7')
+        rc1, rc2 = st.columns(2)
+        with rc1:
+            if sim_res:
+                st.download_button('Download Single Traversal JSON Report', data=json.dumps(generate_simulation_report(graph, sim_res, src_id, dst_id), indent=2), file_name=f'netroute_traversal_report_{src_id}_{dst_id}.json', mime='application/json', width='stretch', key='ie_dl_single_rep')
+            else:
+                st.caption('No single traversal run yet.')
+        with rc2:
+            if cmp_res:
+                st.download_button('Download Comparison JSON Report', data=json.dumps(generate_comparison_report(graph, cmp_res, src_id, dst_id), indent=2), file_name=f'netroute_comparison_report_{src_id}_{dst_id}.json', mime='application/json', width='stretch', key='ie_dl_cmp_rep')
+            else:
+                st.caption('No dual comparison run yet.')
+    with tab_imp:
         st.markdown('### Import Topology JSON')
-        st.caption('Upload a JSON file containing router coordinates and connection definitions. Full validation guarantees the graph remains unmodified on error.')
         uploaded_file = st.file_uploader('Choose a JSON topology file', type=['json'], key='ie_file_uploader')
         if uploaded_file is not None:
             try:
@@ -1382,38 +1366,12 @@ def render_import_export(graph: Graph):
                         st.error(f'Import Failed: {msg}')
             except Exception as e:
                 st.error(f'Failed to parse JSON file: {str(e)}')
-    with tab_exp_reports:
-        st.markdown('### Export Current Simulation Reports')
-        sim_res = st.session_state.get('sim_res')
-        cmp_res = st.session_state.get('cmp_res')
-        src_id = st.session_state.get('source_id', 'N1')
-        dst_id = st.session_state.get('dest_id', 'N7')
-        r_c1, r_c2 = st.columns(2)
-        with r_c1:
-            st.markdown('##### Latest Single Traversal Report')
-            if sim_res:
-                rep_data = generate_simulation_report(graph, sim_res, src_id, dst_id)
-                st.download_button(label='Download Single Simulation JSON Report', data=json.dumps(rep_data, indent=2), file_name=f'netroute_traversal_report_{src_id}_{dst_id}.json', mime='application/json', width='stretch', key='ie_dl_single_rep')
-            else:
-                st.info('No single traversal has been run yet.')
-        with r_c2:
-            st.markdown('##### Latest Dual Comparison Report')
-            if cmp_res:
-                cmp_rep = generate_comparison_report(graph, cmp_res, src_id, dst_id)
-                st.download_button(label='Download Comparison JSON Report', data=json.dumps(cmp_rep, indent=2), file_name=f'netroute_comparison_report_{src_id}_{dst_id}.json', mime='application/json', width='stretch', key='ie_dl_cmp_rep')
-            else:
-                st.info('No dual comparison has been run yet.')
+    with tab_exp:
+        st.markdown('### Export Active Topology')
+        topo_json = json.dumps(graph.to_dict(), indent=2)
+        preset_name = st.session_state.get('selected_preset', 'custom')
+        st.download_button('Download Topology JSON File', data=topo_json, file_name=f'netroute_topology_{preset_name}.json', mime='application/json', type='primary', width='stretch', key='ie_btn_download_topo')
+        st.code(topo_json, language='json')
 
-def render_settings_help(graph: Graph):
-    st.markdown('## Settings & User Guide')
-    st.markdown('*Simulator configuration and user guide.*')
-    tab_guide, tab_settings = st.tabs(['User Guide', 'Settings'])
-    with tab_guide:
-        st.markdown('\n            ### NetRoute Quick Start Guide\n            1. **Topology Studio**: Build your network graph by adding routers and connecting them with transmission links. Assign costs, reposition nodes, or toggle offline states.\n            2. **Traversal Simulator**: Select Source and Destination routers. Run BFS or DFS and use step playback (`<`, `>`, slider) to inspect queue and stack dynamics.\n            3. **BFS vs. DFS Comparison**: Watch synchronized side-by-side simulations to understand why BFS guarantees minimum hops while DFS explores deep branches.\n            4. **Routing Table Simulator**: Experience traditional distributed hop-by-hop forwarding using local routing tables.\n            5. **Import / Export**: Save and restore your network topologies as JSON files or export complete simulation logs.\n            ')
-    with tab_settings:
-        st.markdown('### Simulator Configuration')
-        if st.button('Reset Entire Application to Defaults', width='stretch', key='set_btn_factory_reset'):
-            st.session_state.clear()
-            sim.init_session()
-            st.rerun()
-        st.caption('Restores the default Reference 7-Node WAN topology and resets all simulation history.')
+render_simulation_history = render_import_simulation
+render_import_export = render_import_simulation

@@ -2,13 +2,13 @@ import streamlit as st
 from network import Graph
 import simulation as sim
 from theme import CUSTOM_CSS, PRIMARY, TEXT_MAIN, TEXT_MUTED
-from views import render_dashboard, render_topology_studio, render_traversal_simulator, render_bfs_dfs_comparison, render_network_failure_lab, render_data_structures_inspector, render_traversal_tree, render_routing_table_simulator, render_network_analysis, render_benchmark_lab, render_simulation_history, render_import_export, render_settings_help
+from views import render_dashboard, render_topology_studio, render_traversal_simulator, render_bfs_dfs_comparison, render_network_failure_lab, render_data_structures_inspector, render_traversal_tree, render_routing_table_simulator, render_network_analysis, render_benchmark_lab, render_import_simulation
 st.set_page_config(page_title='NetRoute — Network Packet Routing', page_icon='🌐', layout='wide', initial_sidebar_state='expanded')
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 sim.init_session()
 graph: Graph = st.session_state['graph']
 st.sidebar.markdown('\n    <div style="padding-bottom: 6px;">\n        <span style="font-size: 1.45rem; font-weight: 800; color: #0F172A; letter-spacing: -0.5px;">NetRoute</span><br>\n        <span style="font-size: 0.82rem; color: #475569; font-weight: 500;">Network Packet Routing Simulator</span>\n    </div>\n    ', unsafe_allow_html=True)
-NAV_PAGES = ['Dashboard', 'Topology Studio', 'Traversal Simulator', 'BFS vs DFS Comparison', 'Network Failure Lab', 'Data Structures Inspector', 'Traversal Tree', 'Routing Table Simulator', 'Network Analysis', 'Benchmark Lab', 'Simulation History', 'Import / Export', 'Settings / Help']
+NAV_PAGES = ['Dashboard', 'Topology Studio', 'Traversal Simulator', 'BFS vs DFS Comparison', 'Network Failure Lab', 'Data Structures Inspector', 'Traversal Tree', 'Routing Table Simulator', 'Network Analysis', 'Benchmark Lab', 'Import & Simulation']
 current_page = st.session_state.get('nav_page', 'Dashboard')
 if current_page not in NAV_PAGES:
     current_page = 'Dashboard'
@@ -67,9 +67,5 @@ elif page == 'Network Analysis':
     render_network_analysis(graph)
 elif page == 'Benchmark Lab':
     render_benchmark_lab(graph)
-elif page == 'Simulation History':
-    render_simulation_history(graph)
-elif page == 'Import / Export':
-    render_import_export(graph)
-elif page == 'Settings / Help':
-    render_settings_help(graph)
+elif page in ('Import & Simulation', 'Simulation History', 'Import / Export'):
+    render_import_simulation(graph)
