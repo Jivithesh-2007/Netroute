@@ -91,6 +91,27 @@ CUSTOM_CSS = f"""
         font-weight: 600 !important;
     }}
 
+    /* Sidebar Navigation Radio Buttons */
+    [data-testid="stSidebar"] div[data-testid="stRadio"] > label {{
+        display: none !important;
+    }}
+    [data-testid="stSidebar"] div[data-testid="stRadio"] > div {{
+        gap: 3px !important;
+    }}
+    [data-testid="stSidebar"] div[data-testid="stRadio"] label {{
+        padding: 7px 12px !important;
+        border-radius: 6px !important;
+        cursor: pointer !important;
+        transition: all 0.15s ease !important;
+        font-weight: 600 !important;
+        font-size: 0.88rem !important;
+        color: {TEXT_MAIN} !important;
+    }}
+    [data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {{
+        background-color: #E2E8F0 !important;
+        color: {PRIMARY} !important;
+    }}
+
     /* Navigation Tabs */
     button[data-baseweb="tab"] {{
         color: #475569 !important;

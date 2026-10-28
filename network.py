@@ -1,9 +1,9 @@
 """
 network.py — Network Topology, Router Models, and Graph Representations.
 
-Demonstrates:
-- CO2: Dynamic Graph Operations (Adding/Removing Vertices & Edges, Adjacency Lists/Matrices)
-- CO5: Network Graph Representation & Traditional Routing Table Generation
+Provides:
+- Graph Operations (Adding/Removing Vertices & Edges, Adjacency Lists/Matrices)
+- Network Graph Representation & Traditional Routing Table Generation
 """
 
 import math
@@ -505,28 +505,74 @@ class Graph:
         }
 
     def load_from_dict(self, data: Dict[str, Any]) -> Tuple[bool, str]:
-        """Loads and validates a topology from a dictionary."""
-        if not isinstance(data, dict) or "routers" not in data or "edges" not in data:
-            return False, "Invalid topology format: 'routers' and 'edges' keys required."
-        self.clear()
-        for rdata in data["routers"]:
-            if "id" not in rdata:
-                continue
-            self.add_router(
-                router_id=rdata["id"],
-                name=rdata.get("name", ""),
-                x=rdata.get("x", 200.0),
-                y=rdata.get("y", 200.0),
-                is_online=rdata.get("is_online", True)
-            )
-        for edge in data["edges"]:
-            if len(edge) >= 2:
-                w = float(edge[2]) if len(edge) >= 3 else 1.0
-                self.add_connection(edge[0], edge[1], weight=w)
-        for fe in data.get("failed_edges", []):
-            if len(fe) >= 2:
-                self.failed_edges.add(tuple(sorted((str(fe[0]), str(fe[1])))))
-        return True, f"Loaded {len(self.routers)} routers and {len(self.get_edges())} connections."
+        """Loads and strictly validates a topology from a dictionary without corrupting existing state on failure."""
+        if not isinstance(data, dict):
+            return False, "Invalid topology format: JSON root must be an object."
+        if "routers" not in data or not isinstance(data["routers"], list):
+            return False, "Invalid topology format: 'routers' list is required."
+        if "edges" not in data or not isinstance(data["edges"], list):
+            return False, "Invalid topology format: 'edges' list is required."
+
+        temp_g = Graph()
+        seen_rids = set()
+
+        for idx, rdata in enumerate(data["routers"]):
+            if not isinstance(rdata, dict) or "id" not in rdata:
+                return False, f"Router entry at index {idx} must be an object with an 'id' property."
+            raw_id = str(rdata["id"]).strip().upper()
+            ok_id, msg_id = validate_router_id(raw_id)
+            if not ok_id:
+                return False, f"Invalid router ID '{raw_id}' at index {idx}: {msg_id}"
+            if raw_id in seen_rids:
+                return False, f"Duplicate router ID '{raw_id}' in topology."
+            seen_rids.add(raw_id)
+
+            try:
+                rx = float(rdata.get("x", 200.0))
+                ry = float(rdata.get("y", 200.0))
+            except (ValueError, TypeError):
+                rx, ry = 200.0, 200.0
+
+            rname = str(rdata.get("name", "")).strip() or f"Router {raw_id}"
+            ronline = bool(rdata.get("is_online", True))
+            temp_g.add_router(raw_id, name=rname, x=rx, y=ry, is_online=ronline)
+
+        for idx, edge in enumerate(data["edges"]):
+            if not isinstance(edge, (list, tuple)) or len(edge) < 2:
+                return False, f"Edge entry at index {idx} must contain at least [u, v]."
+            u = str(edge[0]).strip().upper()
+            v = str(edge[1]).strip().upper()
+            if u not in temp_g.routers:
+                return False, f"Edge ({u}, {v}) references non-existent router '{u}'."
+            if v not in temp_g.routers:
+                return False, f"Edge ({u}, {v}) references non-existent router '{v}'."
+            if u == v:
+                return False, f"Self-loop edge ({u}, {u}) is not allowed."
+            w = 1.0
+            if len(edge) >= 3:
+                try:
+                    w = float(edge[2])
+                    if w < 0:
+                        return False, f"Edge ({u}, {v}) has negative weight {w}."
+                except (ValueError, TypeError):
+                    w = 1.0
+            temp_g.add_connection(u, v, weight=w)
+
+        failed_list = data.get("failed_edges", [])
+        if isinstance(failed_list, list):
+            for fe in failed_list:
+                if isinstance(fe, (list, tuple)) and len(fe) >= 2:
+                    fu = str(fe[0]).strip().upper()
+                    fv = str(fe[1]).strip().upper()
+                    if fu in temp_g.routers and fv in temp_g.routers:
+                        temp_g.failed_edges.add(tuple(sorted((fu, fv))))
+
+        # Transactionally commit changes to self
+        self.routers = temp_g.routers
+        self.adjacency = temp_g.adjacency
+        self.weights = temp_g.weights
+        self.failed_edges = temp_g.failed_edges
+        return True, f"Successfully loaded {len(self.routers)} routers and {len(self.get_edges())} connections."
 
 
 def validate_router_id(router_id: str) -> Tuple[bool, str]:

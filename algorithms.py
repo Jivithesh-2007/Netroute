@@ -1,13 +1,16 @@
 """
 algorithms.py — Routing Traversal, Searching, Sorting, and Tree Structure Algorithms.
 
-Integrated Course Outcomes:
-- CO3: Searching (Linear vs. Binary) and Sorting (Bubble vs. Insertion) Algorithm Evaluation.
-- CO4: Routing Traversal Spanning Tree Structure from Parent Pointers.
-- CO5: Graph Traversals (BFS and DFS) and Route Reconstruction.
+Core Capabilities:
+- Graph Traversals (BFS and DFS) with deterministic step traces and route reconstruction.
+- Searching (Linear vs. Binary) and Sorting (Bubble vs. Insertion) evaluation.
+- Routing Traversal Spanning Tree structures from parent pointers.
+- Comparative analysis between Breadth-First and Depth-First search.
+- JSON simulation and comparison report generation.
 """
 
 import time
+from datetime import datetime, timezone
 from collections import deque
 from typing import Dict, List, Set, Tuple, Optional, Any
 from network import Graph
@@ -1201,4 +1204,109 @@ def compare_bfs_dfs(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
         "suggestions": suggestions,
         "scenario_guide": scenario_guide
     }
+
+
+def generate_simulation_report(graph: Graph, res: Dict[str, Any], src: str, dst: str) -> Dict[str, Any]:
+    """
+    Constructs a JSON-compatible simulation report documenting an actual traversal run.
+    Contains metadata, topology snapshot, execution trace, metrics, and theoretical complexity.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    algo_name = res.get("algorithm", "Graph Traversal")
+    success = bool(res.get("success", False))
+    path = list(res.get("path", []))
+    hops = int(res.get("hops", 0))
+    visited = list(res.get("visited", []))
+    parents = {k: v for k, v in res.get("parents", {}).items()}
+
+    # Clean steps for JSON compatibility
+    steps_clean = []
+    for s in res.get("steps", []):
+        steps_clean.append({
+            "step": s.get("step"),
+            "operation": s.get("operation"),
+            "current_node": s.get("current_node"),
+            "structure": list(s.get("structure", [])),
+            "front": s.get("front"),
+            "rear": s.get("rear"),
+            "top": s.get("top"),
+            "action_target": s.get("action_target"),
+            "visited": list(s.get("visited", [])),
+            "active_edge": list(s.get("active_edge")) if s.get("active_edge") else None,
+            "description": s.get("description")
+        })
+
+    return {
+        "schema_version": "1.0.0",
+        "project": "NetRoute — Network Packet Routing Simulator",
+        "generated_at": now_iso,
+        "endpoints": {
+            "source": src,
+            "destination": dst
+        },
+        "algorithm": algo_name,
+        "status": "SUCCESS" if success else "NO_ROUTE_FOUND",
+        "result_message": res.get("message", ""),
+        "route": {
+            "path": path,
+            "hop_count": hops,
+            "path_string": " -> ".join(path) if path else "None"
+        },
+        "metrics": {
+            "execution_time_ms": round(float(res.get("execution_time_ms", 0.0)), 4),
+            "total_simulation_steps": len(steps_clean),
+            "visited_routers_count": len(visited),
+            "explored_edges_count": int(res.get("explored_edges_count", 0)),
+            "max_data_structure_depth": int(res.get("max_structure", 0)),
+            "enqueues_or_pushes": int(res.get("total_enqueues", res.get("total_pushes", 0))),
+            "dequeues_or_pops": int(res.get("total_dequeues", res.get("total_pops", 0)))
+        },
+        "traversal_order": visited,
+        "parent_mapping": parents,
+        "theoretical_complexity": {
+            "time_complexity": "O(V + E) for adjacency list representation",
+            "auxiliary_space_complexity": "O(V) for visited set and traversal queue/stack"
+        },
+        "topology_snapshot": graph.to_dict(),
+        "step_by_step_trace": steps_clean
+    }
+
+
+def generate_comparison_report(graph: Graph, cmp_res: Dict[str, Any], src: str, dst: str) -> Dict[str, Any]:
+    """
+    Constructs a JSON-compatible comparative simulation report evaluating both BFS and DFS.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    bfs_res = cmp_res.get("bfs", {})
+    dfs_res = cmp_res.get("dfs", {})
+
+    return {
+        "schema_version": "1.0.0",
+        "project": "NetRoute — Network Packet Routing Simulator",
+        "report_type": "DUAL_ALGORITHM_COMPARISON",
+        "generated_at": now_iso,
+        "endpoints": {
+            "source": src,
+            "destination": dst
+        },
+        "topology_snapshot": graph.to_dict(),
+        "comparison_summary": {
+            "verdict_title": cmp_res.get("verdict_title", ""),
+            "verdict_badge": cmp_res.get("verdict_badge", ""),
+            "winner": cmp_res.get("winner", ""),
+            "verdict_summary": cmp_res.get("verdict_summary", ""),
+            "both_success": cmp_res.get("both_success", False),
+            "same_path": cmp_res.get("same_path", False),
+            "hop_delta": cmp_res.get("hop_delta", 0),
+            "bfs_hops": cmp_res.get("bfs_hops", 0),
+            "dfs_hops": cmp_res.get("dfs_hops", 0)
+        },
+        "bfs_run": generate_simulation_report(graph, bfs_res, src, dst),
+        "dfs_run": generate_simulation_report(graph, dfs_res, src, dst),
+        "theoretical_complexity": {
+            "bfs": {"time": "O(V + E)", "space": "O(V)", "property": "Minimum hop guarantee in unweighted graphs"},
+            "dfs": {"time": "O(V + E)", "space": "O(V)", "property": "Exhaustive depth traversal; no shortest hop guarantee"}
+        }
+    }
+
 

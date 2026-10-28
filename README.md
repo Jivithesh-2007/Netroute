@@ -1,211 +1,135 @@
-# NetRoute — Network Packet Routing
+# NetRoute — Network Packet Routing Simulator
 
-**Micro Project 06**  
-**Industry Focus:** Networking and Telecommunications  
-**Integrated Course Outcomes:** **CO3, CO4, CO5**  
-**Project Scope:** Implement graph-based routing algorithms for network packet transmission. Use DFS and BFS traversal to determine optimal paths. Compare graph-based routing approaches with traditional table-based routing.
+**Industry Focus:** Networking, Telecommunications, and Distributed Systems  
+**Architecture:** Simulation-First Python / Streamlit Application  
+**Visualization:** Interactive Plotly Network Diagrams & Spanning Trees  
 
-Developed using **Python**, **Streamlit**, and **Plotly**.
-
----
-
-## 1. Official Course Outcome Mapping
-
-### CO3 — Searching and Sorting Algorithm Evaluation
-**Official Outcome:** *Evaluate the performance of searching and sorting algorithms for solving engineering problems.*
-
-- **Searching Evaluation (Linear vs. Binary Search):**
-  - **Dataset:** Router IDs and routing records from the active network graph.
-  - **Linear Search $O(n)$:** Scans sequentially from index 0 to $n-1$ on unsorted router lists; tracks genuine comparison counts and execution time.
-  - **Binary Search $O(\log n)$:** Utilizes divide-and-conquer on sorted router records; eliminates half of the remaining search space per step; explains why sorted input is a mandatory prerequisite; gracefully handles absent router IDs and empty datasets.
-- **Sorting Evaluation (Bubble Sort vs. Insertion Sort):**
-  - **Bubble Sort $O(n^2)$:** Repeatedly compares and swaps adjacent inverted elements; tracks comparisons and swaps; includes early-exit optimization ($O(n)$ best case).
-  - **Insertion Sort $O(n^2)$ / $O(n)$:** Iteratively builds a sorted array by picking elements and shifting larger items rightward; demonstrates $O(n)$ best case for already sorted data.
-  - **Correctness Verification:** Automatically verifies sorted outputs against Python's canonical `sorted()` order.
-- **Evaluation Display:** Compact comparison table detailing Algorithm, Input Size ($n$), Result Correctness, Actual Comparisons, Swaps/Shifts, Measured Time (ms), and Theoretical Time Complexity. Operation counts serve as the primary educational metric.
+NetRoute is a professional, interactive, simulation-first network routing application. It allows network engineers, computer science students, and researchers to design and edit network topologies, observe step-by-step BFS and DFS packet traversals with live data structure states, compare both algorithms through synchronized simulations, analyze graph theoretical properties, inspect routing tables, and export standardized JSON simulation reports.
 
 ---
 
-### CO4 — Tree Structures
-**Official Outcome:** *Develop tree structures for solving engineering problems.*
+## 1. Application Navigation & Core Features
 
-- **Routing Traversal Tree:**
-  - Constructs a genuine rooted Traversal Spanning Tree derived directly from the parent pointers recorded during Breadth-First Search (BFS) routing.
-  - **Unique Root:** The source router serves as the tree root (Level 0 / Depth 0).
-  - **Parent-Child Hierarchy:** Each reachable non-root router has exactly one parent in the tree.
-  - **Directed Tree Edges:** Visualized using a dedicated hierarchical Plotly tree visualizer, highlighting tree edges from parent to child.
-  - **Destination Path Highlight:** Clearly highlights the reconstructed root-to-destination path within the tree.
-  - **Unreachable Node Exclusion:** Vertices disconnected from the source are strictly excluded from the tree.
-  - **Acyclic Invariant:** Traversal tree is mathematically guaranteed to be cycle-free ($0$ loops), satisfying the tree invariant:
-    $$\text{Tree Edges } E_{tree} = V_{tree} - 1$$
-- **Engineering Comparison (Network Graph vs. Traversal Tree):**
-  - Details why the physical network graph contains arbitrary cycles and redundant loops for fault tolerance ($E \ge V$), while the routing traversal tree is an acyclic spanning tree ($E = V' - 1$) used to resolve a single deterministic forwarding path.
+NetRoute uses a clean, compact Streamlit sidebar navigation system structured into 11 specialized sections:
 
----
-
-### CO5 — Graph-Based Packet Routing vs. Traditional Routing Table Comparison
-**Official Outcome:** *Evaluate the applicability of graph data structures and traversal techniques for solving engineering problems.*
-
-- **Graph-Based Packet Routing:**
-  - Network graph representation: Routers as vertices ($V$), transmission links as edges ($E$).
-  - **BFS Routing:** FIFO queue (`collections.deque`); discovers the minimum-hop route in unweighted networks.
-  - **DFS Routing:** LIFO stack (`list`); discovers valid reachable routes without minimum-hop guarantee.
-  - **Route Reconstruction:** Traces predecessor pointers backward from destination to source in $O(L)$ time.
-  - **Interactive Packet Stepper:** Animates hop-by-hop packet movement along discovered routes.
-- **Traditional Forwarding Table Comparison:**
-  - Generates router forwarding tables for each router displaying **Destination**, **Next Hop**, **Hop Count (Metric)**, and **Reachability Status**.
-  - **Hop-by-Hop Table Forwarding Simulation (`simulate_table_forwarding`):** Simulates distributed packet transmission where each intermediate router independently looks up the packet's destination in its local table to determine the Next Hop.
-  - **Failure Detection:** Detects and reports forwarding failures upon link severance, offline intermediate routers, routing loops, or missing destination entries without silently falling back to global search.
-  - **Comparative Dimension Table:** Contrasts centralized on-demand graph traversal discovery against distributed $O(1)$ table forwarding.
-
----
-
-### Supporting Implementation Foundations (CO1 & CO2)
-- **CO1 (Data Structures):** Queue (`collections.deque`), Stack (`list`), and Min-Heap Priority Queue (`heapq`) live inspector with front/rear, top/bottom pointers and operation counters.
-- **CO2 (Dynamic Representations):** Real-time synchronization between the dynamic Adjacency List $O(V + E)$ and the Adjacency Matrix $O(V^2)$.
+1. **Dashboard:** High-level network status, KPI metric cards (Active Routers, Transmission Links, Connectivity State, Simulation Engine Status), interactive topology preview, and quick-action launchers.
+2. **Topology Studio:** Full visual graph editor supporting:
+   - Adding, deleting, renaming, and repositioning routers ($X, Y$ coordinates).
+   - Toggling router availability (Online / Offline).
+   - Adding and removing transmission links with custom weights / costs.
+   - Simulating physical link failures (Sever Link / Restore Link).
+   - Balanced circular auto-layout and topology presets (Reference WAN, Ring, Mesh, Disconnected, Linear Chain, Multi-Route, Offline Router).
+   - Clear network operation with explicit confirmation safety.
+3. **Traversal Simulator:** Primary interactive simulation engine:
+   - Source and destination endpoint selection.
+   - Algorithm selection: Breadth-First Search (BFS) or Depth-First Search (DFS).
+   - Step-by-step playback controls: First Step (`|<<`), Previous (`<`), Next (`>`), Last (`>>|`), and interactive step scrubber slider.
+   - Distinct visual node and edge states: Source, Destination, Active Processing Router, Discovered Neighbors, Visited Routers, Explored Edges, Discovered Route, Offline Routers, Severed Links.
+   - Dedicated live Queue (BFS) and Stack (DFS) inspectors displaying current contents, front/rear and top pointers, operation counters, and peak frontier depths.
+   - Step execution cards explaining every internal event.
+   - Hop-by-hop packet forwarding animation along discovered routes.
+   - Downloadable JSON Simulation Report containing full runtime data, topology snapshot, and step trace.
+4. **BFS vs. DFS Comparison:** Dedicated dual-simulation comparative analysis page:
+   - Synchronized side-by-side visual graphs running on the identical graph snapshot and endpoints.
+   - Synchronized playback controls advancing both algorithms in lockstep.
+   - Displays live BFS Queue state and DFS Stack state simultaneously.
+   - Comprehensive metrics comparison table (Hop Count, Routers Visited, Explored Edges, Enqueues/Pushes, Peak Memory, Execution Time).
+   - Authoritative engineering verdict explaining why BFS guarantees minimal latency in unweighted networks while DFS explores deep branches.
+   - Downloadable combined comparison JSON report.
+5. **Data Structures Inspector:** Live inspection of internal data structures:
+   - Graph representations: Adjacency List $O(V + E)$ and Adjacency Matrix $O(V^2)$.
+   - Queue and Stack evolution tables.
+   - Searching evaluation (Linear Search $O(n)$ vs. Binary Search $O(\log n)$) on adaptive network datasets.
+   - Sorting evaluation (Bubble Sort $O(n^2)$ vs. Insertion Sort $O(n^2)$) with operation counts and correctness verification.
+6. **Traversal Tree:** Spanning tree analysis:
+   - Hierarchical Plotly tree visualizer derived directly from algorithm predecessor / parent pointers.
+   - Tree root at source router with children descending by distance levels.
+   - Root-to-destination path highlighted within the tree.
+   - Mathematical invariant verification: $E_{tree} = V_{tree} - 1$, acyclic check, connected component check, and exclusion of unreachable nodes.
+7. **Routing Table Simulator:** Traditional distributed hop-by-hop packet forwarding:
+   - Generates local forwarding tables for every router displaying Destination, Next Hop, Metric Hops, and Reachability.
+   - Simulates hop-by-hop forwarding where each router independently consults its own local routing table.
+   - Real failure detection: missing destination entries, offline intermediate routers, severed links, routing loops, and TTL expiration.
+8. **Network Analysis:** Graph topology diagnostics:
+   - Router degree distribution (in/out/total degree, min/max/average degree).
+   - Connected subnets (components) identification.
+   - Source reachability matrix across all target routers.
+9. **Simulation History:** Session log of all executed single traversals and dual comparisons:
+   - Summary table with timestamps, endpoints, algorithms, hop counts, and step counts.
+   - Historical run inspector with full JSON preview and one-click report download.
+10. **Import / Export:** Robust data interchange:
+    - Export active topology as JSON preserving router coordinates, weights, and failure flags.
+    - Import topology JSON with transactional schema validation (rejection of duplicate IDs, self-loops, negative weights, and missing endpoints without corrupting the active graph).
+    - Download latest single simulation and dual comparison JSON reports.
+11. **Settings / Help:** User guide, theoretical algorithm foundations, time and space complexity matrix, and application state factory reset.
 
 ---
 
 ## 2. Computational Complexity Matrix
 
-| Algorithm | Category | Best Case | Average Case | Worst Case | Space Complexity | Engineering Role |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Linear Search** | Searching (CO3) | $O(1)$ | $O(n)$ | $O(n)$ | $O(1)$ auxiliary | Sequential lookup on unsorted router lists |
-| **Binary Search** | Searching (CO3) | $O(1)$ | $O(\log n)$ | $O(\log n)$ | $O(1)$ auxiliary | Divide-and-conquer on sorted router records |
-| **Bubble Sort** | Sorting (CO3) | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ auxiliary | Adjacent comparison with early-exit flag |
-| **Insertion Sort** | Sorting (CO3) | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ auxiliary | Incremental insertion; fast on nearly-sorted data |
-| **Traversal Tree** | Trees (CO4) | $O(V)$ | $O(V)$ | $O(V)$ | $O(V)$ | Acyclic rooted spanning tree ($E = V - 1$) |
-| **BFS Routing** | Graph (CO5) | $O(V + E)$ | $O(V + E)$ | $O(V + E)$ | $O(V)$ | Guaranteed minimum-hop route discovery |
-| **DFS Routing** | Graph (CO5) | $O(V + E)$ | $O(V + E)$ | $O(V + E)$ | $O(V)$ | Deep branch exploration with backtracking |
-| **Table Lookup** | Forwarding (CO5)| $O(1)$ | $O(1)$ | $O(1)$ | $O(V)$ per router | Hop-by-hop Next Hop lookup at intermediate nodes |
+| Algorithm / Operation | Data Structure | Time Complexity | Auxiliary Space | Shortest Hop Guarantee? |
+| :--- | :--- | :--- | :--- | :--- |
+| **BFS Traversal** | FIFO Queue (`deque`) | $O(V + E)$ | $O(V)$ | **Yes** (Unweighted networks) |
+| **DFS Traversal** | LIFO Stack (`list`) | $O(V + E)$ | $O(V)$ | **No** (Explores branches deeply) |
+| **Adjacency List** | Hash Map of Lists | $O(V + E)$ space | $O(V + E)$ | N/A |
+| **Adjacency Matrix** | 2D Array | $O(V^2)$ space | $O(V^2)$ | N/A |
+| **Traversal Tree** | Rooted Spanning Tree | $O(V)$ | $O(V)$ | Verified ($E = V - 1$, Acyclic) |
+| **Table Lookup** | Local Forwarding Table | $O(1)$ per hop | $O(V)$ per router | Dependent on routing table |
+| **Linear Search** | Sequential Array | $O(n)$ | $O(1)$ | N/A |
+| **Binary Search** | Sorted Array | $O(\log n)$ | $O(1)$ | N/A |
+| **Bubble Sort** | Array | $O(n^2)$ | $O(1)$ | N/A |
+| **Insertion Sort** | Array | $O(n^2)$ | $O(1)$ | N/A |
 
 ---
 
-## 3. Project File Structure
+## 3. Project Architecture
 
 ```
 Netroute/
-├── main.py                     # Streamlit application UI, dashboard, Plotly tree & graph engines, and tabs
-├── network.py                  # Router and Graph models, adjacency list/matrix, and generate_routing_table()
-├── algorithms.py               # BFS, DFS, Dijkstra, linear_search, binary_search, bubble_sort, insertion_sort, build_traversal_tree
-├── simulation.py               # Playback engine, packet stepper, history, and simulate_table_forwarding()
-├── theme.py                    # Design system, high-contrast light theme CSS tokens, and card components
-├── tests/                      # Automated unit test suite (81 tests)
-│   ├── test_co3_searching_sorting.py   # Tests for linear/binary search & bubble/insertion sort
-│   ├── test_co4_traversal_tree.py      # Tests for traversal tree invariants, root, and acyclic property
-│   ├── test_co5_table_routing.py       # Tests for routing tables and table forwarding simulation
-│   ├── test_bfs.py                     # BFS unweighted shortest path tests
-│   ├── test_dfs.py                     # DFS path validity tests
-│   ├── test_dijkstra.py                # Dijkstra weighted path tests
-│   ├── test_network.py                 # Graph data structure & dynamic editing tests
-│   ├── test_simulation.py              # Simulation state and invalidation tests
-│   ├── test_failure_lab.py             # Network failure and recovery tests
-│   ├── test_comparison.py              # Dual BFS vs DFS comparison tests
-│   ├── test_challenge.py               # DSA challenge mode tests
-│   └── test_history_and_report.py      # History recording & report export tests
-└── README.md                   # Project documentation and faculty demonstration guide
+├── main.py                     # Streamlit application entrypoint & sidebar navigation
+├── views.py                    # Modular view renderers for all 11 application sections
+├── visualizer.py               # Plotly network graph and tree visualization engines
+├── network.py                  # Router model, Graph representation, adjacency list/matrix, routing tables
+├── algorithms.py               # BFS, DFS, searching, sorting, traversal tree, comparison & JSON reports
+├── simulation.py               # Playback state, scrubbing, dual comparison, history, table forwarding
+├── theme.py                    # Light-theme CSS tokens, badges, and UI components
+├── data/                       # Bundled topology presets (reference_network.json, sample_network.json)
+├── tests/                      # Automated test suite (77 tests, all passing)
+│   ├── test_bfs.py
+│   ├── test_dfs.py
+│   ├── test_bfs_dfs_comparison.py
+│   ├── test_network.py
+│   ├── test_simulation.py
+│   ├── test_reports_and_features.py
+│   ├── test_co3_searching_sorting.py
+│   ├── test_co4_traversal_tree.py
+│   └── test_co5_table_routing.py
+├── requirements.txt            # Project dependencies
+└── README.md                   # Documentation & setup guide
 ```
 
 ---
 
-## 4. Installation and Execution
+## 4. Setup and Execution
 
-### Step 1: Clone or Navigate to Directory
-```bash
-cd /Users/Jivithesh/Desktop/S3_MP/Netroute
-```
+### Prerequisites
+- Python 3.10+ (tested on Python 3.13 and Python 3.14)
+- Virtual environment (recommended)
 
-### Step 2: Install Dependencies
+### Installation
 ```bash
+git clone <repository-url>
+cd Netroute
 pip install -r requirements.txt
 ```
-*(Dependencies: `streamlit`, `plotly`, `pandas`)*
 
-### Step 3: Run Automated Test Suite
-Verify that all 81 automated tests pass:
+### Running Automated Tests
 ```bash
-python3 -m unittest discover -s tests -p "test_*.py" -v
+python3 -m pytest
 ```
 
-### Step 4: Launch the Streamlit Web Application
+### Launching the Application
 ```bash
 streamlit run main.py
 ```
-Open your browser at `http://localhost:8501`.
-
----
-
-## 5. Faculty Viva Voce Demonstration Guide
-
-When presenting the project to faculty, follow this structured demonstration:
-
-### Demonstrating CO3 — Searching and Sorting
-1. Click on the **"CO3: Searching & Sorting Evaluation"** tab.
-2. In the **Searching Evaluation** panel:
-   - Search for an existing router ID (e.g., `N4`): observe that **Linear Search** takes 4 comparisons while **Binary Search** takes only 1–2 comparisons ($O(\log n)$).
-   - Search for an absent router ID (e.g., `N99`): observe that Linear Search scans all elements, whereas Binary Search quickly terminates.
-   - Highlight the explanation of why Binary Search requires sorted data (divide-and-conquer half elimination).
-3. In the **Sorting Evaluation** panel:
-   - Select the **"Reverse-Sorted Worst Case"** input: observe that both Bubble Sort and Insertion Sort execute $O(n^2)$ comparisons.
-   - Switch to the **"Already Sorted Best Case"** input: observe that Insertion Sort finishes with 0 shifts and $n-1$ comparisons, proving its optimal $O(n)$ best-case behavior.
-   - Note the **Compact CO3 Comparison Table** summarizing operation counts and theoretical complexities.
-
-### Demonstrating CO4 — Tree Structures
-1. Click on the **"CO4: Routing Traversal Tree Inspector"** tab.
-2. View the **Traversal Spanning Tree** Plotly figure:
-   - Point out that **Source Router `N1`** is the unique **Root** (Level 0 / Depth 0).
-   - Point out that all discovered routers appear as child nodes placed strictly by traversal level/depth.
-   - Highlight that the path from Root to Destination (`N7`) is traced along tree edges in green.
-3. Review the **Tree Invariants Card**:
-   - Verify the Single Root condition.
-   - Verify the edge count invariant: $E_{tree} = V_{tree} - 1$.
-   - Verify that the traversal tree is strictly **Acyclic** ($0$ cycles), even though the physical network graph contains cycles.
-4. Review the **Engineering Distinction Table** explaining how a cycle-free traversal spanning tree differs from a mesh network graph with redundant links.
-
-### Demonstrating CO5 — Graph Routing vs. Traditional Routing Table Comparison
-1. Click on the **"CO5: Packet Routing & Routing Table Comparison"** tab.
-2. Under **Traditional Router Routing Table**:
-   - Inspect the forwarding table generated for Router `N1`: Destination, Next Hop, Hop Count, and Status.
-   - Explain how a physical router looks up the Next Hop for incoming packets.
-3. Under **Hop-by-Hop Table Forwarding Simulation**:
-   - Observe the step-by-step forwarding log as the packet moves from router to router based on local table lookups.
-   - Go to the Failure Lab or cut a link along the route: demonstrate that table forwarding reports a forwarding failure (`LINK_SEVERED` or `NO_ROUTE_TO_HOST`) without silently falling back to a global graph traversal.
-4. Review the **Architectural Dimension Comparison Table** contrasting centralized on-demand graph search (BFS) with distributed hop-by-hop forwarding tables.
-
----
-
-### Demonstrating BFS vs. DFS Algorithm Comparison
-1. Click on the **"BFS vs. DFS Comparison"** tab.
-2. Observe the **Executive KPI Scorecard**:
-   - Compares **Hop Counts** ($H_{BFS}$ vs $H_{DFS}$), highlighting the provable optimality of BFS.
-   - Compares **Exploration Coverage** (number and % of visited routers).
-   - Compares **Peak Auxiliary Structure Footprint** (FIFO Queue size vs LIFO Stack depth).
-3. Review the **Side-by-Side Dual Network Figures**:
-   - Left canvas shows the concentric radial breadth exploration of BFS and its optimal shortest route in solid blue.
-   - Right canvas shows the deep-branch probe and backtracking behavior of DFS in purple.
-4. Review the **"Which Algorithm is Best?" Authoritative Verdict**:
-   - Explains why BFS is strictly best for packet forwarding (minimizes latency, conserves bandwidth, predictable concentric frontier).
-   - Explains the specific scenarios where DFS is preferred (STP loop/cycle detection, Tarjan's single point of failure analysis, topological sorting, memory-constrained IoT nodes).
-5. Explore the **Interactive Scenario Selector** to see real-world recommendations across 6 engineering challenges.
-6. Review the **Professional Engineering Suggestions & Architectural Guidelines** covering production protocol deployment, cycle detection, IDDFS, and TTL guardrails.
-
----
-
-## 6. Manual Execution Guide
-
-To launch and run NetRoute manually from the terminal:
-
-```bash
-# 1. Navigate to the project root directory
-cd "/Users/jeslinjp/Library/CloudStorage/GoogleDrive-jeslin3379@gmail.com/My Drive/my_project/Netroute"
-
-# 2. Ensure dependencies are installed
-python3 -m pip install -r requirements.txt
-
-# 3. Launch the Streamlit application
-python3 -m streamlit run main.py
-
-# 4. Access the web dashboard in your browser at:
-# http://localhost:8501
-```
-
+Open your browser at `http://localhost:8501` to use NetRoute.
