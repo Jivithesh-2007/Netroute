@@ -9,9 +9,10 @@ Maintains session state in Streamlit for:
 """
 
 from typing import Dict, Any, Optional, Set, List, Tuple
+from datetime import datetime, timezone
 import streamlit as st
 from network import Graph
-from algorithms import bfs, dfs
+from algorithms import bfs, dfs, compare_bfs_dfs, generate_simulation_report
 
 
 def init_session():
@@ -23,6 +24,9 @@ def init_session():
 
     if "selected_preset" not in st.session_state:
         st.session_state["selected_preset"] = "reference"
+
+    if "nav_page" not in st.session_state:
+        st.session_state["nav_page"] = "Dashboard"
 
     if "sim_res" not in st.session_state:
         st.session_state["sim_res"] = None
@@ -54,8 +58,17 @@ def init_session():
     if "table_fwd_res" not in st.session_state:
         st.session_state["table_fwd_res"] = None
 
+    if "cmp_res" not in st.session_state:
+        st.session_state["cmp_res"] = None
+
     if "bfs_dfs_comp_res" not in st.session_state:
         st.session_state["bfs_dfs_comp_res"] = None
+
+    if "cmp_step_idx" not in st.session_state:
+        st.session_state["cmp_step_idx"] = 0
+
+    if "simulation_history" not in st.session_state:
+        st.session_state["simulation_history"] = []
 
     g_nodes = list(st.session_state["graph"].routers.keys())
     if "source_id" not in st.session_state or st.session_state["source_id"] not in st.session_state["graph"].routers:
@@ -92,10 +105,24 @@ def invalidate_simulation():
     st.session_state["sort_res"] = None
     st.session_state["table_fwd_res"] = None
     st.session_state["bfs_dfs_comp_res"] = None
+    st.session_state["cmp_res"] = None
+    st.session_state["cmp_step_idx"] = 0
+
+
+def add_to_history(record: Dict[str, Any]):
+    """Appends a completed simulation record to session history."""
+    if "simulation_history" not in st.session_state:
+        st.session_state["simulation_history"] = []
+    st.session_state["simulation_history"].insert(0, record)
+
+
+def clear_history():
+    """Clears simulation history."""
+    st.session_state["simulation_history"] = []
 
 
 def execute_routing(graph: Graph, algo: str, src: str, dst: str) -> Dict[str, Any]:
-    """Runs genuine BFS or DFS, stores steps, and starts playback from step 0."""
+    """Runs genuine BFS or DFS, stores steps, records history, and starts playback from step 0."""
     if "DFS" in algo:
         res = dfs(graph, src, dst)
     else:
@@ -106,7 +133,105 @@ def execute_routing(graph: Graph, algo: str, src: str, dst: str) -> Dict[str, An
     st.session_state["is_playing"] = False
     st.session_state["packet_hop"] = 0
     st.session_state["packet_auto"] = False
+
+    # Add run record to history
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    record = {
+        "id": f"sim_{int(datetime.now(timezone.utc).timestamp())}",
+        "timestamp": now_str,
+        "type": "Single Traversal",
+        "algorithm": res.get("algorithm", algo),
+        "source": src,
+        "destination": dst,
+        "success": res.get("success", False),
+        "path": list(res.get("path", [])),
+        "hops": res.get("hops", 0),
+        "visited_count": len(res.get("visited", [])),
+        "explored_edges_count": res.get("explored_edges_count", 0),
+        "steps_count": len(res.get("steps", [])),
+        "execution_time_ms": round(float(res.get("execution_time_ms", 0.0)), 4),
+        "topology_summary": graph.get_summary(),
+        "report": generate_simulation_report(graph, res, src, dst)
+    }
+    add_to_history(record)
     return res
+
+
+def execute_dual_comparison(graph: Graph, src: str, dst: str) -> Dict[str, Any]:
+    """Runs synchronized BFS vs DFS comparison and prepares side-by-side playback."""
+    cmp_res = compare_bfs_dfs(graph, src, dst)
+    st.session_state["cmp_res"] = cmp_res
+    st.session_state["cmp_step_idx"] = 0
+
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    record = {
+        "id": f"cmp_{int(datetime.now(timezone.utc).timestamp())}",
+        "timestamp": now_str,
+        "type": "Dual Comparison (BFS vs DFS)",
+        "algorithm": "BFS vs DFS",
+        "source": src,
+        "destination": dst,
+        "success": cmp_res.get("both_success", False),
+        "path": list(cmp_res.get("bfs", {}).get("path", [])),
+        "hops": cmp_res.get("bfs_hops", 0),
+        "visited_count": cmp_res.get("bfs_visited_count", 0),
+        "explored_edges_count": cmp_res.get("bfs", {}).get("explored_edges_count", 0),
+        "steps_count": max(len(cmp_res.get("bfs", {}).get("steps", [])), len(cmp_res.get("dfs", {}).get("steps", []))),
+        "execution_time_ms": round(float(cmp_res.get("bfs", {}).get("execution_time_ms", 0.0) + cmp_res.get("dfs", {}).get("execution_time_ms", 0.0)), 4),
+        "topology_summary": graph.get_summary(),
+        "verdict": cmp_res.get("verdict_badge", "")
+    }
+    add_to_history(record)
+    return cmp_res
+
+
+def cmp_step_forward():
+    """Advances comparison simulation by one step."""
+    cmp_res = st.session_state.get("cmp_res")
+    if cmp_res:
+        bfs_steps = len(cmp_res.get("bfs", {}).get("steps", []))
+        dfs_steps = len(cmp_res.get("dfs", {}).get("steps", []))
+        max_steps = max(bfs_steps, dfs_steps)
+        if max_steps > 0 and st.session_state.get("cmp_step_idx", 0) < max_steps - 1:
+            st.session_state["cmp_step_idx"] += 1
+
+
+def cmp_step_backward():
+    """Moves comparison simulation back by one step."""
+    if st.session_state.get("cmp_step_idx", 0) > 0:
+        st.session_state["cmp_step_idx"] -= 1
+
+
+def cmp_first_step():
+    """Jumps comparison simulation to the initial step."""
+    st.session_state["cmp_step_idx"] = 0
+
+
+def cmp_last_step():
+    """Jumps comparison simulation to the final step."""
+    cmp_res = st.session_state.get("cmp_res")
+    if cmp_res:
+        bfs_steps = len(cmp_res.get("bfs", {}).get("steps", []))
+        dfs_steps = len(cmp_res.get("dfs", {}).get("steps", []))
+        max_steps = max(bfs_steps, dfs_steps)
+        if max_steps > 0:
+            st.session_state["cmp_step_idx"] = max_steps - 1
+
+
+def cmp_jump_to_step(idx: int):
+    """Jumps comparison simulation directly to step index."""
+    cmp_res = st.session_state.get("cmp_res")
+    if cmp_res:
+        bfs_steps = len(cmp_res.get("bfs", {}).get("steps", []))
+        dfs_steps = len(cmp_res.get("dfs", {}).get("steps", []))
+        max_steps = max(bfs_steps, dfs_steps)
+        if max_steps > 0:
+            st.session_state["cmp_step_idx"] = max(0, min(idx, max_steps - 1))
+
+
+def cmp_reset():
+    """Resets comparison playback to step 0."""
+    st.session_state["cmp_step_idx"] = 0
 
 
 def step_forward():
@@ -174,73 +299,61 @@ def reset_packet():
     st.session_state["packet_auto"] = False
 
 
-def get_active_state(graph: Graph) -> Dict[str, Any]:
+def get_step_visual_state(graph: Graph, res: Optional[Dict[str, Any]], step_idx: int) -> Dict[str, Any]:
     """
-    Extracts visual elements and state information corresponding
-    to the active execution step and packet hop position.
+    Extracts visual elements and state information for any algorithm result dict
+    at a given step index. Reusable across single and dual simulations.
     """
-    res = st.session_state.get("sim_res")
-    current_step = None
-    active_node = None
-    active_edge = None
-    action_target = None
-    visited_nodes: Set[str] = set()
-    visited_sequence: List[str] = []
+    if not res or not res.get("steps"):
+        return {
+            "step": None,
+            "res": res,
+            "is_completed": False,
+            "active_node": None,
+            "active_edge": None,
+            "action_target": None,
+            "visited_nodes": set(),
+            "visited_sequence": [],
+            "explored_edges": set(),
+            "tree_edges": [],
+            "route_nodes": set(),
+            "route_edges": [],
+            "packet_node": None,
+            "next_packet_node": None,
+            "packet_status": "No active simulation."
+        }
+
+    steps = res["steps"]
+    tot_steps = len(steps)
+    idx = max(0, min(step_idx, tot_steps - 1))
+    current_step = steps[idx]
+    is_completed = (idx == tot_steps - 1)
+
+    active_node = current_step.get("current_node")
+    active_edge = current_step.get("active_edge")
+    action_target = current_step.get("action_target")
+    visited_sequence = list(current_step.get("visited", []))
+    visited_nodes: Set[str] = set(visited_sequence)
+    if active_node and active_node in graph.routers:
+        visited_nodes.add(active_node)
+
     explored_edges: Set[Tuple[str, str]] = set()
+    for s in steps[:idx + 1]:
+        if s.get("active_edge"):
+            explored_edges.add(tuple(sorted(s["active_edge"])))
+
     tree_edges: List[Tuple[str, str]] = []
+    for child, par in current_step.get("parents", {}).items():
+        if par is not None:
+            tree_edges.append(tuple(sorted((par, child))))
+
     route_nodes: Set[str] = set()
     route_edges: List[Tuple[str, str]] = []
-    packet_node = None
-    next_packet_node = None
-    packet_status = "No route discovered."
-    is_completed = False
-
-    if res and res.get("steps"):
-        tot_steps = len(res["steps"])
-        idx = max(0, min(st.session_state.get("step_idx", 0), tot_steps - 1))
-        current_step = res["steps"][idx]
-        is_completed = (idx == tot_steps - 1)
-
-        active_node = current_step.get("current_node")
-        active_edge = current_step.get("active_edge")
-        action_target = current_step.get("action_target")
-        visited_sequence = list(current_step.get("visited", []))
-        visited_nodes = set(visited_sequence)
-        if active_node and active_node in graph.routers:
-            visited_nodes.add(active_node)
-
-        for s in res["steps"][:idx + 1]:
-            if s.get("active_edge"):
-                explored_edges.add(tuple(sorted(s["active_edge"])))
-
-        for child, par in current_step.get("parents", {}).items():
-            if par is not None:
-                tree_edges.append(tuple(sorted((par, child))))
-
-    if res and res.get("success") and res.get("path") and is_completed:
+    if res.get("success") and res.get("path") and is_completed:
         path = res["path"]
         route_nodes = set(path)
         for i in range(len(path) - 1):
             route_edges.append(tuple(sorted((path[i], path[i + 1]))))
-
-    if res and res.get("success") and res.get("path"):
-        path = res["path"]
-        p_hop = st.session_state.get("packet_hop", 0)
-        if 0 <= p_hop < len(path):
-            packet_node = path[p_hop]
-            if p_hop + 1 < len(path):
-                next_packet_node = path[p_hop + 1]
-
-            if not graph.routers.get(packet_node) or not graph.routers[packet_node].is_online:
-                packet_status = f"Transmission BLOCKED: Router '{packet_node}' is offline."
-            elif p_hop == 0:
-                packet_status = f"Packet buffered at Source '{packet_node}' (Hop 0). Ready for transmission."
-            elif p_hop == len(path) - 1:
-                packet_status = f"Packet DELIVERED to Destination '{packet_node}' in {len(path) - 1} hops."
-            else:
-                packet_status = f"In Transit: Hop {p_hop}/{len(path) - 1} | At '{packet_node}' -> Next: '{next_packet_node}'"
-    elif current_step and current_step.get("current_node"):
-        packet_node = current_step.get("current_node")
 
     return {
         "step": current_step,
@@ -255,10 +368,46 @@ def get_active_state(graph: Graph) -> Dict[str, Any]:
         "tree_edges": tree_edges,
         "route_nodes": route_nodes,
         "route_edges": route_edges,
-        "packet_node": packet_node,
-        "next_packet_node": next_packet_node,
-        "packet_status": packet_status
+        "packet_node": active_node,
+        "next_packet_node": None,
+        "packet_status": "Simulation in progress." if not is_completed else "Traversal finished."
     }
+
+
+def get_active_state(graph: Graph) -> Dict[str, Any]:
+    """
+    Extracts visual elements and state information corresponding
+    to the active execution step and packet hop position for single traversal.
+    """
+    res = st.session_state.get("sim_res")
+    step_idx = st.session_state.get("step_idx", 0)
+    state = get_step_visual_state(graph, res, step_idx)
+
+    # Augment packet status and packet hop position
+    if res and res.get("success") and res.get("path"):
+        path = res["path"]
+        p_hop = st.session_state.get("packet_hop", 0)
+        if 0 <= p_hop < len(path):
+            packet_node = path[p_hop]
+            next_packet_node = path[p_hop + 1] if p_hop + 1 < len(path) else None
+
+            if not graph.routers.get(packet_node) or not graph.routers[packet_node].is_online:
+                packet_status = f"Transmission BLOCKED: Router '{packet_node}' is offline."
+            elif p_hop == 0:
+                packet_status = f"Packet buffered at Source '{packet_node}' (Hop 0). Ready for transmission."
+            elif p_hop == len(path) - 1:
+                packet_status = f"Packet DELIVERED to Destination '{packet_node}' in {len(path) - 1} hops."
+            else:
+                packet_status = f"In Transit: Hop {p_hop}/{len(path) - 1} | At '{packet_node}' -> Next: '{next_packet_node}'"
+
+            state["packet_node"] = packet_node
+            state["next_packet_node"] = next_packet_node
+            state["packet_status"] = packet_status
+    elif state.get("active_node"):
+        state["packet_node"] = state.get("active_node")
+
+    return state
+
 
 
 def simulate_table_forwarding(graph: Graph, src: str, dst: str, max_hops: int = 25) -> Dict[str, Any]:

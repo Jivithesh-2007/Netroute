@@ -171,3 +171,19 @@ def generate_simulation_report(
 def export_simulation_report_json(report_data: Dict[str, Any]) -> str:
     """Serializes the report dictionary to a pretty-printed JSON string."""
     return json.dumps(report_data, indent=2)
+
+
+def generate_comparison_report(
+    graph: Graph,
+    cmp_res: Dict[str, Any],
+    source: str,
+    destination: str
+) -> Dict[str, Any]:
+    """Constructs an authoritative combined dual-simulation comparison JSON report."""
+    from algorithms import generate_comparison_report as _algo_cmp_rep
+    return _algo_cmp_rep(graph, cmp_res, source, destination)
+
+
+def export_comparison_report_json(report_data: Dict[str, Any]) -> str:
+    """Serializes the comparison report to pretty-printed JSON."""
+    return json.dumps(report_data, indent=2)

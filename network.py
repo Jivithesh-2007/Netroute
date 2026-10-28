@@ -1,9 +1,9 @@
 """
 network.py — Network Topology, Router Models, and Graph Representations.
 
-Demonstrates:
-- CO2: Dynamic Graph Operations (Adding/Removing Vertices & Edges, Adjacency Lists/Matrices)
-- CO5: Network Graph Representation & Traditional Routing Table Generation
+Provides:
+- Graph Operations (Adding/Removing Vertices & Edges, Adjacency Lists/Matrices)
+- Network Graph Representation & Traditional Routing Table Generation
 """
 
 import math
@@ -531,6 +531,7 @@ class Graph:
         for fe in cleaned["failed_edges"]:
             self.failed_edges.add(tuple(sorted((str(fe[0]), str(fe[1])))))
         return True, f"Loaded {len(self.routers)} routers and {len(self.get_edges())} connections."
+
 
 
 def validate_router_id(router_id: str) -> Tuple[bool, str]:
