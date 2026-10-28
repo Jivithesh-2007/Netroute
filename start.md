@@ -1,5 +1,24 @@
 # Quick Start Guide — NetRoute
 
+## ⚡ Fastest Way: One-Click / Single-Command Launch
+
+Simply open your terminal, navigate to the project directory, and run:
+
+```bash
+cd "/Users/jeslinjp/Library/CloudStorage/GoogleDrive-jeslin3379@gmail.com/My Drive/my_project/Netroute"
+./start.sh
+```
+
+`start.sh` automatically:
+- Resolves the project directory
+- Activates the virtual environment (`.venv`)
+- Verifies dependencies
+- Launches Streamlit on `http://localhost:8501`
+
+---
+
+## 🛠️ Alternative: Manual Step-by-Step Launch
+
 ### 1. Open Terminal and Navigate to Project
 ```bash
 cd "/Users/jeslinjp/Library/CloudStorage/GoogleDrive-jeslin3379@gmail.com/My Drive/my_project/Netroute"
@@ -9,7 +28,7 @@ cd "/Users/jeslinjp/Library/CloudStorage/GoogleDrive-jeslin3379@gmail.com/My Dri
 ```bash
 source .venv/bin/activate
 ```
-*(Your terminal prompt will display (.venv) on the left).*
+*(Your terminal prompt will display `(.venv)` on the left).*
 
 ### 3. (Optional) Run the Automated Test Suite
 Verify that all 101 unit and integration tests pass:
